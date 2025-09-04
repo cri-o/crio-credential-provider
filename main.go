@@ -1,13 +1,12 @@
 package main
 
 import (
-	"crypto/tls"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,6 +14,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
@@ -40,6 +41,9 @@ func main() {
 
 func run(l *log.Logger) error {
 	l.Print("Running credential provider")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 
 	l.Print("Reading from stdin")
 
@@ -67,7 +71,7 @@ func run(l *log.Logger) error {
 	}
 
 	l.Printf("Getting secrets from namespace: %s", namespace)
-	secrets, err := retrieveSecrets(req.ServiceAccountToken, namespace)
+	secrets, err := retrieveSecrets(ctx, req.ServiceAccountToken, namespace)
 	if err != nil {
 		return fmt.Errorf("unable to get secrets: %w", err)
 	}
@@ -190,36 +194,21 @@ func extractNamespace(req *cpv1.CredentialProviderRequest) (string, error) {
 	return namespace, nil
 }
 
-func retrieveSecrets(token, namespace string) (*corev1.SecretList, error) {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	client := &http.Client{Transport: transport}
-
-	httpReq, err := http.NewRequest(
-		http.MethodGet,
-		fmt.Sprintf("https://localhost:6443/api/v1/namespaces/%s/secrets", namespace),
-		nil,
-	)
+func retrieveSecrets(ctx context.Context, token, namespace string) (*corev1.SecretList, error) {
+	client, err := kubernetes.NewForConfig(&rest.Config{
+		Host:            "localhost:6443",
+		BearerToken:     token,
+		TLSClientConfig: rest.TLSClientConfig{Insecure: true},
+	})
 	if err != nil {
-		return nil, fmt.Errorf("unable create HTTP request: %w", err)
+		return nil, fmt.Errorf("unable to connect to Kubernetes API: %w", err)
 	}
 
-	httpReq.Header.Add("Authorization", "Bearer "+token)
-
-	resp, err := client.Do(httpReq)
+	secrets, err := client.CoreV1().
+		Secrets(namespace).
+		List(ctx, metav1.ListOptions{FieldSelector: "type=" + string(corev1.SecretTypeDockerConfigJson)})
 	if err != nil {
-		return nil, fmt.Errorf("unable to do HTTP request to obtain secrets: %w", err)
-	}
-	defer func() { resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read response body: %w", err)
-	}
-
-	secrets := &corev1.SecretList{}
-	if err := json.Unmarshal(body, &secrets); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal secret list: %w", err)
+		return nil, fmt.Errorf("unable to retrieve secrets: %w", err)
 	}
 
 	return secrets, nil
