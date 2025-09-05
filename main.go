@@ -223,7 +223,6 @@ func findDockerAuthFromSecrets(secrets *corev1.SecretList, mirrors []string, l *
 		return nil
 	}
 
-	var foundEntry *DockerConfigEntry
 	for _, secret := range secrets.Items {
 		if secret.Type != corev1.SecretTypeDockerConfigJson {
 			continue
@@ -245,36 +244,31 @@ func findDockerAuthFromSecrets(secrets *corev1.SecretList, mirrors []string, l *
 			continue
 		}
 
-		foundMatchingAuth := false
 		for key, authConfig := range dockerConfigJSON.Auths {
-			l.Printf("Found matching docker config JSON auth in secret: %s", secret.Name)
+			l.Printf("Found docker config JSON auth in secret: %s", secret.Name)
+
 			auth, err := decodeDockerAuth(authConfig)
 			if err != nil {
 				l.Printf("Skipping secret %q because the docker config JSON auth is not parsable: %v", secret.Name, err)
 
 				continue
 			}
+
 			for _, m := range mirrors {
 				if strings.HasPrefix(m, key) {
-					foundEntry = &auth
-					foundMatchingAuth = true
-					break
+					return &auth
 				}
 			}
-			foundEntry = &auth
-			foundMatchingAuth = true
 
-			break
+			return &auth
 		}
 
-		if foundMatchingAuth {
-			break
-		}
-
-		l.Printf("Found no matching docker config JSON auth in secret: %s", secret.Name)
+		l.Printf("No matching docker config JSON auth found in secret: %s", secret.Name)
 	}
 
-	return foundEntry
+	l.Print("No docker auth found for any available secret")
+
+	return nil
 }
 
 // decodeDockerAuth decodes the username and password from conf
