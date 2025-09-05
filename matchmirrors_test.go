@@ -1,0 +1,80 @@
+package main
+
+import (
+	"encoding/base64"
+	"log"
+	"os"
+	"path/filepath"
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
+)
+
+func TestMatchMirrors_WithRegistriesConf(t *testing.T) {
+	// Create a temporary registries.conf
+	dir := t.TempDir()
+	confPath := filepath.Join(dir, "registries.conf")
+	conf := `unqualified-search-registries = ["quay.io"]
+
+[[registry]]
+location = "quay.io"
+
+  [[registry.mirror]]
+  location = "mirror.quay.io"
+
+  [[registry.mirror]]
+  location = "cache.local:5000"
+`
+	if err := os.WriteFile(confPath, []byte(conf), 0o600); err != nil {
+		t.Fatalf("failed to write temp registries.conf: %v", err)
+	}
+
+	req := &cpv1.CredentialProviderRequest{Image: "quay.io/library/nginx"}
+
+	mirrors, err := matchMirrors(req, confPath)
+	if err != nil {
+		t.Fatalf("matchMirrors returned error: %v", err)
+	}
+	if len(mirrors) != 2 {
+		t.Fatalf("expected 2 mirrors, got %d: %#v", len(mirrors), mirrors)
+	}
+	if mirrors[0] != "mirror.quay.io" || mirrors[1] != "cache.local:5000" {
+		t.Fatalf("unexpected mirrors order/content: %#v", mirrors)
+	}
+}
+
+func TestFindDockerAuthFromSecrets(t *testing.T) {
+	// Provided dockerConfigJSONBytes (base64 of the dockerconfigjson content) mirror.quay.io, myname:mypassword
+	testdockerConfigJSONBytes := "ewoJImF1dGhzIjogewoJCSJtaXJyb3IucXVheS5pbyI6IHsKCQkJImF1dGgiOiAiYlhsdVlXMWxPbTE1Y0dGemMzZHZjbVE9IgoJCX0KCX0KfQ=="
+	decoded, err := base64.StdEncoding.DecodeString(testdockerConfigJSONBytes)
+	if err != nil {
+		t.Fatalf("failed to decode test payload: %v", err)
+	}
+
+	secret := corev1.Secret{
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: decoded,
+		},
+	}
+	secrets := &corev1.SecretList{Items: []corev1.Secret{secret}}
+
+	// Mirrors include mirror.quay.io to match the first entry key
+	mirrors := []string{"mirror.quay.io"}
+
+	logger := log.New(os.Stderr, "", log.LstdFlags)
+
+	entry := findDockerAuthFromSecrets(secrets, mirrors, logger)
+	if entry == nil {
+		t.Fatalf("expected an auth entry, got nil")
+	}
+
+	// The provided auth values decode to username:password; verify both
+	if entry.Username != "myname" {
+		t.Errorf("decoded username is %q, expected %q", entry.Username, "myname")
+	}
+	if entry.Password != "mypassword" {
+		t.Errorf("decoded password is %q, expected %q", entry.Password, "mypassword")
+	}
+}

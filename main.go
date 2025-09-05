@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,8 +10,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/containers/image/v5/pkg/sysregistriesv2"
+	"github.com/containers/image/v5/types"
 	"github.com/golang-jwt/jwt/v5"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,13 +24,19 @@ import (
 )
 
 type DockerConfigJSON struct {
-	Auths map[string]DockerConfigEntry `json:"auths"`
+	Auths map[string]DockerAuthConfig `json:"auths"`
+}
+
+type DockerAuthConfig struct {
+	Auth string `json:"auth,omitempty"`
 }
 
 type DockerConfigEntry struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
+
+const registriesConfPath = "/etc/containers/registries.conf"
 
 func main() {
 	l, err := newLogger()
@@ -77,45 +87,12 @@ func run(l *log.Logger) error {
 	}
 	l.Printf("Got %d secret(s)", len(secrets.Items))
 
-	var foundEntry *DockerConfigEntry
-	for _, secret := range secrets.Items {
-		if secret.Type != corev1.SecretTypeDockerConfigJson {
-			continue
-		}
-
-		l.Printf("Parsing secret: %s", secret.Name)
-		dockerConfigJSONBytes, ok := secret.Data[corev1.DockerConfigJsonKey]
-		if !ok {
-			l.Printf("Skipping secret %q because it does not contain data key %q", secret.Name, corev1.DockerConfigJsonKey)
-
-			continue
-		}
-
-		dockerConfigJSON := DockerConfigJSON{}
-		err := json.Unmarshal(dockerConfigJSONBytes, &dockerConfigJSON)
-		if err != nil {
-			l.Printf("Skipping secret %q because the docker config JSON is not parsable: %v", secret.Name, err)
-
-			continue
-		}
-
-		foundMatchingAuth := false
-		for _, auth := range dockerConfigJSON.Auths {
-			l.Printf("Found matching docker config JSON auth in secret: %s", secret.Name)
-			// TODO: Resolve registries.conf
-
-			foundEntry = &auth
-			foundMatchingAuth = true
-
-			break
-		}
-
-		if foundMatchingAuth {
-			break
-		}
-
-		l.Printf("Found no matching docker config JSON auth in secret: %s", secret.Name)
+	mirrors, err := matchMirrors(req, registriesConfPath)
+	if err != nil {
+		return fmt.Errorf("unable to match mirrors: %w", err)
 	}
+
+	foundEntry := findDockerAuthFromSecrets(secrets, mirrors, l)
 
 	if foundEntry != nil {
 		response := cpv1.CredentialProviderResponse{
@@ -212,4 +189,108 @@ func retrieveSecrets(ctx context.Context, token, namespace string) (*corev1.Secr
 	}
 
 	return secrets, nil
+}
+
+func matchMirrors(req *cpv1.CredentialProviderRequest, registriesConfPath string) ([]string, error) {
+	if req == nil || req.Image == "" {
+		return nil, errors.New("request is nil or image is empty")
+	}
+	ctx := &types.SystemContext{SystemRegistriesConfPath: registriesConfPath}
+
+	// req.Image should include the explicit hostname
+	var sources []string
+	registry, err := sysregistriesv2.FindRegistry(ctx, req.Image)
+	if err != nil {
+		return nil, fmt.Errorf("loading registries configuration: %w", err)
+	}
+
+	if registry == nil {
+		log.Printf("No registry found for image %q", req.Image)
+		return nil, nil
+	}
+
+	for _, mirror := range registry.Mirrors {
+		sources = append(sources, mirror.Location)
+	}
+
+	return sources, nil
+}
+
+// findDockerAuthFromSecrets scans dockerconfigjson-type secrets and returns the first decoded auth entry
+// that matches any of the provided mirrors
+func findDockerAuthFromSecrets(secrets *corev1.SecretList, mirrors []string, l *log.Logger) *DockerConfigEntry {
+	if secrets == nil {
+		return nil
+	}
+
+	var foundEntry *DockerConfigEntry
+	for _, secret := range secrets.Items {
+		if secret.Type != corev1.SecretTypeDockerConfigJson {
+			continue
+		}
+
+		l.Printf("Parsing secret: %s", secret.Name)
+		dockerConfigJSONBytes, ok := secret.Data[corev1.DockerConfigJsonKey]
+		if !ok {
+			l.Printf("Skipping secret %q because it does not contain data key %q", secret.Name, corev1.DockerConfigJsonKey)
+
+			continue
+		}
+
+		dockerConfigJSON := DockerConfigJSON{}
+		err := json.Unmarshal(dockerConfigJSONBytes, &dockerConfigJSON)
+		if err != nil {
+			l.Printf("Skipping secret %q because the docker config JSON is not parsable: %v", secret.Name, err)
+
+			continue
+		}
+
+		foundMatchingAuth := false
+		for key, authConfig := range dockerConfigJSON.Auths {
+			l.Printf("Found matching docker config JSON auth in secret: %s", secret.Name)
+			auth, err := decodeDockerAuth(authConfig)
+			if err != nil {
+				l.Printf("Skipping secret %q because the docker config JSON auth is not parsable: %v", secret.Name, err)
+
+				continue
+			}
+			for _, m := range mirrors {
+				if strings.HasPrefix(m, key) {
+					foundEntry = &auth
+					foundMatchingAuth = true
+					break
+				}
+			}
+			foundEntry = &auth
+			foundMatchingAuth = true
+
+			break
+		}
+
+		if foundMatchingAuth {
+			break
+		}
+
+		l.Printf("Found no matching docker config JSON auth in secret: %s", secret.Name)
+	}
+
+	return foundEntry
+}
+
+// decodeDockerAuth decodes the username and password from conf
+func decodeDockerAuth(conf DockerAuthConfig) (DockerConfigEntry, error) {
+	decoded, err := base64.StdEncoding.DecodeString(conf.Auth)
+	if err != nil {
+		return DockerConfigEntry{}, err
+	}
+
+	user, passwordPart, valid := strings.Cut(string(decoded), ":")
+	if !valid {
+		return DockerConfigEntry{}, nil
+	}
+	password := strings.Trim(passwordPart, "\x00")
+	return DockerConfigEntry{
+		Username: user,
+		Password: password,
+	}, nil
 }
