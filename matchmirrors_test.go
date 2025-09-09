@@ -15,6 +15,7 @@ func TestMatchMirrors_WithRegistriesConf(t *testing.T) {
 	// Create a temporary registries.conf
 	dir := t.TempDir()
 	confPath := filepath.Join(dir, "registries.conf")
+
 	conf := `unqualified-search-registries = ["quay.io"]
 
 [[registry]]
@@ -36,9 +37,11 @@ location = "quay.io"
 	if err != nil {
 		t.Fatalf("matchMirrors returned error: %v", err)
 	}
+
 	if len(mirrors) != 2 {
 		t.Fatalf("expected 2 mirrors, got %d: %#v", len(mirrors), mirrors)
 	}
+
 	if mirrors[0] != "mirror.quay.io" || mirrors[1] != "cache.local:5000" {
 		t.Fatalf("unexpected mirrors order/content: %#v", mirrors)
 	}
@@ -47,6 +50,7 @@ location = "quay.io"
 func TestFindDockerAuthFromSecrets(t *testing.T) {
 	// Provided dockerConfigJSONBytes (base64 of the dockerconfigjson content) mirror.quay.io, myname:mypassword
 	testdockerConfigJSONBytes := "ewoJImF1dGhzIjogewoJCSJtaXJyb3IucXVheS5pbyI6IHsKCQkJImF1dGgiOiAiYlhsdVlXMWxPbTE1Y0dGemMzZHZjbVE9IgoJCX0KCX0KfQ=="
+
 	decoded, err := base64.StdEncoding.DecodeString(testdockerConfigJSONBytes)
 	if err != nil {
 		t.Fatalf("failed to decode test payload: %v", err)
@@ -65,7 +69,7 @@ func TestFindDockerAuthFromSecrets(t *testing.T) {
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 
-	entry := findDockerAuthFromSecrets(secrets, mirrors, logger)
+	entry := findDockerAuthFromSecrets(logger, secrets, "", mirrors)
 	if entry == nil {
 		t.Fatalf("expected an auth entry, got nil")
 	}
@@ -74,6 +78,7 @@ func TestFindDockerAuthFromSecrets(t *testing.T) {
 	if entry.Username != "myname" {
 		t.Errorf("decoded username is %q, expected %q", entry.Username, "myname")
 	}
+
 	if entry.Password != "mypassword" {
 		t.Errorf("decoded password is %q, expected %q", entry.Password, "mypassword")
 	}

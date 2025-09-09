@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Test registry credentials:
+USERNAME=myuser
+PASSWORD=mypassword
+
+source "$(dirname "${BASH_SOURCE[0]}")"/stop
+
+PORT=5000
+REGISTRY_IMAGE=docker.io/registry:2
+REGISTRY=localhost:$PORT
+
+podman \
+    run -d \
+    -p $PORT:$PORT \
+    --rm \
+    --pull=always \
+    --name registry \
+    -v "$SCRIPT_DIR/auth:/auth" \
+    -e "REGISTRY_AUTH=htpasswd" \
+    -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+    -e "REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd" \
+    "$REGISTRY_IMAGE"
+
+MAX_CNT=100
+
+for ((i = 0; i <= "$MAX_CNT"; i++)); do
+    if netstat -tuplen 2>/dev/null | grep -q "$PORT .* LISTEN"; then
+        break
+    fi
+
+    if [[ $i == "$MAX_CNT" ]]; then
+        echo "Giving up"
+        exit 1
+    fi
+
+    echo "Waiting for $CONTAINER port $PORT to listen… ($i)"
+    sleep 3
+done
+
+echo "Container $CONTAINER is ready and listening on port $PORT"
+
+podman login --tls-verify=false -u "$USERNAME" -p "$PASSWORD" "$REGISTRY"
+
+BASE_REGISTRY=docker.io
+TEST_IMAGE=library/nginx:latest
+podman pull "$BASE_REGISTRY/$TEST_IMAGE"
+podman tag "$BASE_REGISTRY/$TEST_IMAGE" "$REGISTRY/$TEST_IMAGE"
+podman push --tls-verify=false "$BASE_REGISTRY/$TEST_IMAGE" "$REGISTRY/$TEST_IMAGE"

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")"/env
+
+echo "Stopping $CONTAINER container"
+podman stop "$CONTAINER" >/dev/null 2>&1 || true
