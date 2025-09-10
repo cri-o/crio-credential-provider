@@ -47,4 +47,4 @@ BASE_REGISTRY=docker.io
 TEST_IMAGE=library/nginx:latest
 podman pull "$BASE_REGISTRY/$TEST_IMAGE"
 podman tag "$BASE_REGISTRY/$TEST_IMAGE" "$REGISTRY/$TEST_IMAGE"
-podman push --tls-verify=false "$BASE_REGISTRY/$TEST_IMAGE" "$REGISTRY/$TEST_IMAGE"
+podman push --tls-verify=false "$REGISTRY/$TEST_IMAGE"
