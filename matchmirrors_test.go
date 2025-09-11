@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -81,5 +82,61 @@ func TestFindDockerAuthFromSecrets(t *testing.T) {
 
 	if entry.Password != "mypassword" {
 		t.Errorf("decoded password is %q, expected %q", entry.Password, "mypassword")
+	}
+}
+
+func TestCreateAuthFile(t *testing.T) {
+	user := "u1"
+	pass := "p1"
+	auth := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
+
+	cfg := DockerConfigJSON{Auths: map[string]DockerAuthConfig{
+		"quay.io":          {Auth: auth},
+		"cache.local:5000": {Auth: auth},
+		"registry.local":   {Auth: auth},
+	}}
+	cfgBytes, _ := json.Marshal(cfg)
+
+	secret := corev1.Secret{
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: cfgBytes,
+		},
+	}
+	log.Println("secret", string(cfgBytes))
+	secrets := &corev1.SecretList{Items: []corev1.Secret{secret}}
+
+	logger := log.New(os.Stderr, "", 0)
+	namespace := "ns-unit"
+	image := "registry.local/app/img:1"
+	mirrors := []string{"mirror.quay.io", "cache.local:5000", "quay.io"}
+
+	path, err := CreateAuthFile(logger, secrets, namespace, image, mirrors)
+	if err != nil {
+		t.Fatalf("CreateAuthFile error: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(path) })
+
+	if wantPath := filepath.Join("/tmp", namespace+"-auth.json"); path != wantPath {
+		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	var written DockerConfigJSON
+	if err := json.Unmarshal(data, &written); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// Expect entries for quay.io (mirror match) and registry.local (image match)
+	if _, ok := written.Auths["quay.io"]; !ok {
+		t.Fatalf("expected quay.io entry in written auths: %#v", written.Auths)
+	}
+	if _, ok := written.Auths["registry.local"]; !ok {
+		t.Fatalf("expected registry.local entry in written auths: %#v", written.Auths)
+	}
+	if _, ok := written.Auths["cache.local:5000"]; !ok {
+		t.Fatalf("expected cache.local:5000 entry in written auths: %#v", written.Auths)
 	}
 }
