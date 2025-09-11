@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -48,43 +49,6 @@ location = "quay.io"
 	}
 }
 
-func TestFindDockerAuthFromSecrets(t *testing.T) {
-	// Provided dockerConfigJSONBytes (base64 of the dockerconfigjson content) mirror.quay.io, myname:mypassword
-	testdockerConfigJSONBytes := "ewoJImF1dGhzIjogewoJCSJtaXJyb3IucXVheS5pbyI6IHsKCQkJImF1dGgiOiAiYlhsdVlXMWxPbTE1Y0dGemMzZHZjbVE9IgoJCX0KCX0KfQ=="
-
-	decoded, err := base64.StdEncoding.DecodeString(testdockerConfigJSONBytes)
-	if err != nil {
-		t.Fatalf("failed to decode test payload: %v", err)
-	}
-
-	secret := corev1.Secret{
-		Type: corev1.SecretTypeDockerConfigJson,
-		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: decoded,
-		},
-	}
-	secrets := &corev1.SecretList{Items: []corev1.Secret{secret}}
-
-	// Mirrors include mirror.quay.io to match the first entry key
-	mirrors := []string{"mirror.quay.io"}
-
-	logger := log.New(os.Stderr, "", log.LstdFlags)
-
-	entry := findDockerAuthFromSecrets(logger, secrets, "", mirrors)
-	if entry == nil {
-		t.Fatalf("expected an auth entry, got nil")
-	}
-
-	// The provided auth values decode to username:password; verify both
-	if entry.Username != "myname" {
-		t.Errorf("decoded username is %q, expected %q", entry.Username, "myname")
-	}
-
-	if entry.Password != "mypassword" {
-		t.Errorf("decoded password is %q, expected %q", entry.Password, "mypassword")
-	}
-}
-
 func TestCreateAuthFile(t *testing.T) {
 	user := "u1"
 	pass := "p1"
@@ -111,13 +75,13 @@ func TestCreateAuthFile(t *testing.T) {
 	image := "registry.local/app/img:1"
 	mirrors := []string{"mirror.quay.io", "cache.local:5000", "quay.io"}
 
-	path, err := CreateAuthFile(logger, secrets, namespace, image, mirrors)
+	path, err := createAuthFile(logger, secrets, namespace, image, mirrors)
 	if err != nil {
 		t.Fatalf("CreateAuthFile error: %v", err)
 	}
 	t.Cleanup(func() { os.Remove(path) })
 
-	if wantPath := filepath.Join("/tmp", namespace+"-auth.json"); path != wantPath {
+	if wantPath := fmt.Sprintf(tempAuthPath, namespace); path != wantPath {
 		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
 	}
 

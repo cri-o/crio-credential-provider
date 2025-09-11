@@ -103,35 +103,22 @@ func run(l *log.Logger) error {
 
 	l.Printf("Got mirror(s) for %q: %q", req.Image, strings.Join(mirrors, ", "))
 
-	authFilePath, err := CreateAuthFile(l, secrets, namespace, req.Image, mirrors)
+	authFilePath, err := createAuthFile(l, secrets, namespace, req.Image, mirrors)
 	if err != nil {
-		l.Printf("Unable to create auth file: %v", err)
-	}
-	if authFilePath != "" {
-		l.Printf("Auth file path: %s", authFilePath)
+		return fmt.Errorf("unable to create auth file: %w", err)
 	}
 
-	foundEntry := findDockerAuthFromSecrets(l, secrets, req.Image, mirrors)
+	l.Printf("Auth file path: %s", authFilePath)
 
-	if foundEntry != nil {
-		response := cpv1.CredentialProviderResponse{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "CredentialProviderResponse",
-				APIVersion: "credentialprovider.kubelet.k8s.io/v1",
-			},
-			CacheKeyType:  cpv1.RegistryPluginCacheKeyType,
-			CacheDuration: &metav1.Duration{Duration: 5 * time.Minute},
-			Auth: map[string]cpv1.AuthConfig{
-				req.Image: {Username: foundEntry.Username, Password: foundEntry.Password},
-			},
-		}
-
-		// Provide the response to the kubelet
-		if err := json.NewEncoder(os.Stdout).Encode(response); err != nil {
-			return fmt.Errorf("unable to marshal credential provider response: %w", err)
-		}
-
-		l.Printf("Successfully provided credentials for image %q to the kubelet", req.Image)
+	// Provide an empty response to the kubelet
+	if err := json.NewEncoder(os.Stdout).Encode(cpv1.CredentialProviderResponse{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "CredentialProviderResponse",
+			APIVersion: "credentialprovider.kubelet.k8s.io/v1",
+		},
+		CacheKeyType: cpv1.RegistryPluginCacheKeyType,
+	}); err != nil {
+		return fmt.Errorf("unable to marshal credential provider response: %w", err)
 	}
 
 	return nil
@@ -237,7 +224,7 @@ func matchMirrors(req *cpv1.CredentialProviderRequest, registriesConfPath string
 	return sources, nil
 }
 
-func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image string, mirrors []string) (string, error) {
+func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image string, mirrors []string) (string, error) {
 	if namespace == "" {
 		return "", errors.New("namespace is empty")
 	}
@@ -320,78 +307,6 @@ func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 	}
 	l.Printf("Wrote auth file to %s with %d auth entrie(s)", path, len(fileContents.Auths))
 	return path, nil
-}
-
-// findDockerAuthFromSecrets scans dockerconfigjson-type secrets and returns the first decoded auth entry
-// that matches any of the provided mirrors
-func findDockerAuthFromSecrets(l *log.Logger, secrets *corev1.SecretList, image string, mirrors []string) *DockerConfigEntry {
-	if secrets == nil {
-		return nil
-	}
-
-	for _, secret := range secrets.Items {
-		if secret.Type != corev1.SecretTypeDockerConfigJson {
-			continue
-		}
-
-		l.Printf("Parsing secret: %s", secret.Name)
-
-		dockerConfigJSONBytes, ok := secret.Data[corev1.DockerConfigJsonKey]
-		if !ok {
-			l.Printf("Skipping secret %q because it does not contain data key %q", secret.Name, corev1.DockerConfigJsonKey)
-
-			continue
-		}
-
-		dockerConfigJSON := DockerConfigJSON{}
-
-		err := json.Unmarshal(dockerConfigJSONBytes, &dockerConfigJSON)
-		if err != nil {
-			l.Printf("Skipping secret %q because the docker config JSON is not parsable: %v", secret.Name, err)
-
-			continue
-		}
-
-		for registry, authConfig := range dockerConfigJSON.Auths {
-			l.Printf("Found docker config JSON auth in secret %q for %q", secret.Name, registry)
-
-			trimmedRegistry := strings.TrimPrefix(registry, "http://")
-			trimmedRegistry = strings.TrimPrefix(trimmedRegistry, "https://")
-
-			auth, err := decodeDockerAuth(authConfig)
-			if err != nil {
-				l.Printf("Skipping secret %q because the docker config JSON auth is not parsable: %v", secret.Name, err)
-
-				continue
-			}
-
-			for _, m := range mirrors {
-				l.Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
-
-				if strings.HasPrefix(trimmedRegistry, m) {
-					l.Printf("Using mirror auth %q for registry from secret %q", m, trimmedRegistry)
-
-					return &auth
-				}
-			}
-
-			l.Printf("No matching mirror found for registry %q, trying the image %q as fallback", registry, image)
-
-			if strings.HasPrefix(image, trimmedRegistry) {
-				l.Printf("Using fallback auth for registry %q matching image %q", trimmedRegistry, image)
-
-				return &auth
-			}
-
-			l.Printf("No image fallback found for registry %q", registry)
-		}
-
-		l.Printf("No matching docker config JSON auth found in secret: %s", secret.Name)
-	}
-
-	l.Print("No docker auth found for any available secret")
-
-	return nil
 }
 
 // decodeDockerAuth decodes the username and password from conf
