@@ -1,3 +1,4 @@
+// credential-provier
 package main
 
 import (
@@ -13,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containers/image/v5/pkg/sysregistriesv2"
-	"github.com/containers/image/v5/types"
 	"github.com/golang-jwt/jwt/v5"
+	"go.podman.io/image/v5/pkg/sysregistriesv2"
+	"go.podman.io/image/v5/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -204,9 +205,6 @@ func matchMirrors(req *cpv1.CredentialProviderRequest, registriesConfPath string
 
 	ctx := &types.SystemContext{SystemRegistriesConfPath: registriesConfPath}
 
-	// req.Image should include the explicit hostname
-	var sources []string
-
 	registry, err := sysregistriesv2.FindRegistry(ctx, req.Image)
 	if err != nil {
 		return nil, fmt.Errorf("loading registries configuration: %w", err)
@@ -214,11 +212,15 @@ func matchMirrors(req *cpv1.CredentialProviderRequest, registriesConfPath string
 
 	if registry == nil {
 		log.Printf("No registry found for image %q", req.Image)
+
 		return nil, nil
 	}
 
-	for _, mirror := range registry.Mirrors {
-		sources = append(sources, mirror.Location)
+	// req.Image should include the explicit hostname
+	sources := make([]string, len(registry.Mirrors))
+
+	for i, mirror := range registry.Mirrors {
+		sources[i] = mirror.Location
 	}
 
 	return sources, nil
@@ -228,6 +230,7 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 	if namespace == "" {
 		return "", errors.New("namespace is empty")
 	}
+
 	if secrets == nil {
 		return "", errors.New("secrets is nil")
 	}
@@ -271,10 +274,10 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 
 			for _, m := range mirrors {
 				l.Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
+
 				if strings.HasPrefix(trimmedRegistry, m) {
 					l.Printf("Using mirror auth %q for registry from secret %q", m, trimmedRegistry)
 					auths[m] = auth
-
 				}
 			}
 
@@ -287,11 +290,13 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 
 	if len(auths) == 0 {
 		l.Print("No docker auth found for any available secret")
+
 		return "", errors.New("no docker auth found for any available secret")
 	}
 
 	// Build and write docker config JSON to /tmp/<namespace>-auth.json
 	fileContents := DockerConfigJSON{Auths: map[string]DockerAuthConfig{}}
+
 	for k, e := range auths {
 		encoded := base64.StdEncoding.EncodeToString([]byte(e.Username + ":" + e.Password))
 		fileContents.Auths[k] = DockerAuthConfig{Auth: encoded}
@@ -301,19 +306,22 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 	if err != nil {
 		return "", fmt.Errorf("marshal auth file: %w", err)
 	}
+
 	path := fmt.Sprintf(tempAuthPath, namespace)
 	if err := os.WriteFile(path, bytes, 0o600); err != nil {
 		return "", fmt.Errorf("write auth file: %w", err)
 	}
+
 	l.Printf("Wrote auth file to %s with %d auth entrie(s)", path, len(fileContents.Auths))
+
 	return path, nil
 }
 
-// decodeDockerAuth decodes the username and password from conf
+// decodeDockerAuth decodes the username and password from conf.
 func decodeDockerAuth(conf DockerAuthConfig) (DockerConfigEntry, error) {
 	decoded, err := base64.StdEncoding.DecodeString(conf.Auth)
 	if err != nil {
-		return DockerConfigEntry{}, err
+		return DockerConfigEntry{}, fmt.Errorf("unable to decode docker auth: %w", err)
 	}
 
 	user, passwordPart, valid := strings.Cut(string(decoded), ":")

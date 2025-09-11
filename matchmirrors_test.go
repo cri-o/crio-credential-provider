@@ -59,7 +59,11 @@ func TestCreateAuthFile(t *testing.T) {
 		"cache.local:5000": {Auth: auth},
 		"registry.local":   {Auth: auth},
 	}}
-	cfgBytes, _ := json.Marshal(cfg)
+
+	cfgBytes, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marhsal auth config: %v", err)
+	}
 
 	secret := corev1.Secret{
 		Type: corev1.SecretTypeDockerConfigJson,
@@ -68,6 +72,7 @@ func TestCreateAuthFile(t *testing.T) {
 		},
 	}
 	log.Println("secret", string(cfgBytes))
+
 	secrets := &corev1.SecretList{Items: []corev1.Secret{secret}}
 
 	logger := log.New(os.Stderr, "", 0)
@@ -79,7 +84,8 @@ func TestCreateAuthFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAuthFile error: %v", err)
 	}
-	t.Cleanup(func() { os.Remove(path) })
+
+	t.Cleanup(func() { _ = os.Remove(path) })
 
 	if wantPath := fmt.Sprintf(tempAuthPath, namespace); path != wantPath {
 		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
@@ -89,6 +95,7 @@ func TestCreateAuthFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read file: %v", err)
 	}
+
 	var written DockerConfigJSON
 	if err := json.Unmarshal(data, &written); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -97,9 +104,11 @@ func TestCreateAuthFile(t *testing.T) {
 	if _, ok := written.Auths["quay.io"]; !ok {
 		t.Fatalf("expected quay.io entry in written auths: %#v", written.Auths)
 	}
+
 	if _, ok := written.Auths["registry.local"]; !ok {
 		t.Fatalf("expected registry.local entry in written auths: %#v", written.Auths)
 	}
+
 	if _, ok := written.Auths["cache.local:5000"]; !ok {
 		t.Fatalf("expected cache.local:5000 entry in written auths: %#v", written.Auths)
 	}
