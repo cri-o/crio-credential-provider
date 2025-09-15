@@ -39,7 +39,7 @@ type DockerConfigEntry struct {
 
 var (
 	registriesConfPath = "/etc/containers/registries.conf"
-	tempAuthPath       = filepath.FromSlash(os.TempDir() + "/" + "%s-auth.json")
+	authDir            = "/etc/crio/auth"
 )
 
 func main() {
@@ -307,7 +307,7 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 		return "", fmt.Errorf("marshal auth file: %w", err)
 	}
 
-	path := fmt.Sprintf(tempAuthPath, namespace)
+	path := filepath.Join(authDir, namespace+".json")
 	if err := os.WriteFile(path, bytes, 0o600); err != nil {
 		return "", fmt.Errorf("write auth file: %w", err)
 	}
