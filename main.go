@@ -24,6 +24,12 @@ import (
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
+var (
+	registriesConfPath  = "/etc/containers/registries.conf"
+	authDir             = "/etc/crio/auth"
+	kubeletAuthFilePath = "/var/lib/kubelet/config.json"
+)
+
 type DockerConfigJSON struct {
 	Auths map[string]DockerAuthConfig `json:"auths"`
 }
@@ -36,11 +42,6 @@ type DockerConfigEntry struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
-
-var (
-	registriesConfPath = "/etc/containers/registries.conf"
-	authDir            = "/etc/crio/auth"
-)
 
 func main() {
 	l, err := newLogger()
@@ -104,7 +105,7 @@ func run(l *log.Logger) error {
 
 	l.Printf("Got mirror(s) for %q: %q", req.Image, strings.Join(mirrors, ", "))
 
-	authFilePath, err := createAuthFile(l, secrets, namespace, req.Image, mirrors)
+	authFilePath, err := createAuthFile(l, secrets, kubeletAuthFilePath, authDir, namespace, req.Image, mirrors)
 	if err != nil {
 		return fmt.Errorf("unable to create auth file: %w", err)
 	}
@@ -226,7 +227,7 @@ func matchMirrors(req *cpv1.CredentialProviderRequest, registriesConfPath string
 	return sources, nil
 }
 
-func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image string, mirrors []string) (string, error) {
+func createAuthFile(l *log.Logger, secrets *corev1.SecretList, globalAuthFilePath, authDir, namespace, image string, mirrors []string) (string, error) {
 	if namespace == "" {
 		return "", errors.New("namespace is empty")
 	}
@@ -235,35 +236,66 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 		return "", errors.New("secrets is nil")
 	}
 
+	globalAuthContents, err := readGlobalAuthFile(globalAuthFilePath)
+	if err != nil {
+		return "", fmt.Errorf("unable to read global auth file: %w", err)
+	}
+
+	authfileContents, err := updateAuthContents(l, secrets, globalAuthContents, image, mirrors)
+	if err != nil {
+		return "", fmt.Errorf("unable to get namespace auth contents: %w", err)
+	}
+
+	// Write the namespace auth file to the auth directory /etc/crio/<namespace>-auth.json
+	path, err := writeAuthFile(authDir, namespace, authfileContents)
+	if err != nil {
+		return "", fmt.Errorf("unable to write namespace auth file: %w", err)
+	}
+
+	l.Printf("Wrote auth file to %s with %d auth entrie(s)", path, len(authfileContents.Auths))
+
+	return path, nil
+}
+
+func readGlobalAuthFile(path string) (DockerConfigJSON, error) {
+	var fileContents DockerConfigJSON
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fileContents.Auths = map[string]DockerAuthConfig{}
+
+			log.Printf("Global auth file does not exist, creating empty auths")
+
+			return fileContents, nil
+		}
+
+		return DockerConfigJSON{}, fmt.Errorf("unable to read global auth file: %w", err)
+	}
+
+	if err = json.Unmarshal(raw, &fileContents.Auths); err != nil {
+		return DockerConfigJSON{}, fmt.Errorf("unmarshaling JSON at %q: %w", path, err)
+	}
+
+	return fileContents, nil
+}
+
+func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthContents DockerConfigJSON, image string, mirrors []string) (DockerConfigJSON, error) {
 	// Collect all matching auths keyed by registry or mirror
 	auths := make(map[string]DockerConfigEntry)
 
 	for _, secret := range secrets.Items {
-		if secret.Type != corev1.SecretTypeDockerConfigJson {
-			continue
-		}
-
 		l.Printf("Parsing secret: %s", secret.Name)
 
-		dockerConfigJSONBytes, ok := secret.Data[corev1.DockerConfigJsonKey]
-		if !ok {
-			l.Printf("Skipping secret %q because it does not contain data key %q", secret.Name, corev1.DockerConfigJsonKey)
-
-			continue
-		}
-
-		dockerConfigJSON := DockerConfigJSON{}
-		if err := json.Unmarshal(dockerConfigJSONBytes, &dockerConfigJSON); err != nil {
-			l.Printf("Skipping secret %q because the docker config JSON is not parsable: %v", secret.Name, err)
+		dockerConfigJSON, err := validDockerConfigSecret(secret)
+		if err != nil {
+			l.Printf("Skipping secret %q: %v", secret.Name, err)
 
 			continue
 		}
 
 		for registry, authConfig := range dockerConfigJSON.Auths {
 			l.Printf("Found docker config JSON auth in secret %q for %q", secret.Name, registry)
-
-			trimmedRegistry := strings.TrimPrefix(registry, "http://")
-			trimmedRegistry = strings.TrimPrefix(trimmedRegistry, "https://")
 
 			auth, err := decodeDockerAuth(authConfig)
 			if err != nil {
@@ -272,6 +304,7 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 				continue
 			}
 
+			trimmedRegistry := normalizeSecretRegistry(registry)
 			for _, m := range mirrors {
 				l.Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
 
@@ -291,30 +324,41 @@ func createAuthFile(l *log.Logger, secrets *corev1.SecretList, namespace, image 
 	if len(auths) == 0 {
 		l.Print("No docker auth found for any available secret")
 
-		return "", errors.New("no docker auth found for any available secret")
+		return DockerConfigJSON{}, errors.New("no docker auth found for any available secret")
 	}
 
-	// Build and write docker config JSON to /tmp/<namespace>-auth.json
-	fileContents := DockerConfigJSON{Auths: map[string]DockerAuthConfig{}}
+	// Merge global auth file contents with auths from secrets
+	// auths take precedence over global auths
+	fileContents := globalAuthContents
+	if fileContents.Auths == nil {
+		fileContents.Auths = map[string]DockerAuthConfig{}
+	}
 
 	for k, e := range auths {
 		encoded := base64.StdEncoding.EncodeToString([]byte(e.Username + ":" + e.Password))
 		fileContents.Auths[k] = DockerAuthConfig{Auth: encoded}
 	}
 
-	bytes, err := json.MarshalIndent(fileContents, "", "\t")
-	if err != nil {
-		return "", fmt.Errorf("marshal auth file: %w", err)
+	return fileContents, nil
+}
+
+func validDockerConfigSecret(secret corev1.Secret) (DockerConfigJSON, error) {
+	dockerConfigJSON := DockerConfigJSON{}
+
+	if secret.Type != corev1.SecretTypeDockerConfigJson {
+		return dockerConfigJSON, errors.New("secret is not a docker config JSON secret")
 	}
 
-	path := filepath.Join(authDir, namespace+".json")
-	if err := os.WriteFile(path, bytes, 0o600); err != nil {
-		return "", fmt.Errorf("write auth file: %w", err)
+	dockerConfigJSONBytes, ok := secret.Data[corev1.DockerConfigJsonKey]
+	if !ok {
+		return dockerConfigJSON, fmt.Errorf("skipping secret %q because it does not contain data key %q", secret.Name, corev1.DockerConfigJsonKey)
 	}
 
-	l.Printf("Wrote auth file to %s with %d auth entrie(s)", path, len(fileContents.Auths))
+	if err := json.Unmarshal(dockerConfigJSONBytes, &dockerConfigJSON); err != nil {
+		return dockerConfigJSON, fmt.Errorf("skipping secret %q because the docker config JSON is not parsable: %w", secret.Name, err)
+	}
 
-	return path, nil
+	return dockerConfigJSON, nil
 }
 
 // decodeDockerAuth decodes the username and password from conf.
@@ -335,4 +379,29 @@ func decodeDockerAuth(conf DockerAuthConfig) (DockerConfigEntry, error) {
 		Username: user,
 		Password: password,
 	}, nil
+}
+
+func normalizeSecretRegistry(reg string) string {
+	trimmed := strings.TrimPrefix(reg, "http://")
+	trimmed = strings.TrimPrefix(trimmed, "https://")
+
+	return trimmed
+}
+
+func writeAuthFile(dir, namespace string, fileContents DockerConfigJSON) (string, error) {
+	if fileContents.Auths == nil {
+		return "", errors.New("no auths found in file contents")
+	}
+
+	bytes, err := json.MarshalIndent(fileContents, "", "\t")
+	if err != nil {
+		return "", fmt.Errorf("marshal auth file: %w", err)
+	}
+
+	path := filepath.Join(dir, namespace+".json")
+	if err := os.WriteFile(path, bytes, 0o600); err != nil {
+		return "", fmt.Errorf("write auth file: %w", err)
+	}
+
+	return path, nil
 }
