@@ -1,0 +1,20 @@
+dependencies:
+  - name: go
+    version: 1.25
+    refPaths:
+      - path: go.mod
+        match: go
+
+  - name: zeitgeist
+    version: 0.5.4
+    refPaths:
+      - path: Makefile
+        match: ZEITGEIST_VERSION
+
+  - name: golangci-lint
+    version: v2.4.0
+    refPaths:
+      - path: .github/workflows/ci.yml
+        match: GOLANGCI_LINT_VERSION
+      - path: Makefile
+        match: GOLANGCI_LINT_VERSION
