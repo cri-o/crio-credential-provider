@@ -1,4 +1,4 @@
-module github.com/saschagrunert/credential-provider
+module github.com/cri-o/credential-provider
 
 go 1.25
 
