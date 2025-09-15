@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -50,6 +49,8 @@ location = "quay.io"
 }
 
 func TestCreateAuthFile(t *testing.T) {
+	authDir = os.TempDir()
+
 	user := "u1"
 	pass := "p1"
 	auth := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
@@ -87,7 +88,7 @@ func TestCreateAuthFile(t *testing.T) {
 
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	if wantPath := fmt.Sprintf(tempAuthPath, namespace); path != wantPath {
+	if wantPath := filepath.Join(authDir, namespace+".json"); path != wantPath {
 		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
 	}
 
