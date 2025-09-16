@@ -87,7 +87,6 @@ linters:
     - tagliatelle
     - testableexamples
     - testifylint
-    - testpackage
     - thelper
     - tparallel
     - unconvert
@@ -111,6 +110,7 @@ linters:
     # - mnd
     # - noinlineerr
     # - paralleltest
+    # - testpackage
     # - varnamelen
   exclusions:
     generated: strict

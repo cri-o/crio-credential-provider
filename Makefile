@@ -37,7 +37,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
-	GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-X main.registriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT)
+	GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-X github.com/cri-o/credential-provider/internal/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/credential-provider
 
 .PHONY: clean
 clean: ## Clean the build directory
