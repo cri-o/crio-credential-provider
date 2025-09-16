@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -147,6 +149,7 @@ func TestCreateAuthFile(t *testing.T) {
 	logger := log.New(os.Stderr, "", 0)
 	namespace := "ns-unit"
 	image := "registry.local/app/img:1"
+	imageHash := sha256.Sum256([]byte(image))
 	mirrors := []string{"mirror.quay.io", "cache.local:5000", "quay.io"}
 
 	path, err := CreateAuthFile(logger, secrets, "", config.AuthDir, namespace, image, mirrors)
@@ -156,7 +159,7 @@ func TestCreateAuthFile(t *testing.T) {
 
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	if wantPath := filepath.Join(config.AuthDir, namespace+".json"); path != wantPath {
+	if wantPath := filepath.Join(config.AuthDir, fmt.Sprintf("%s-%x.json", namespace, imageHash)); path != wantPath {
 		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
 	}
 
