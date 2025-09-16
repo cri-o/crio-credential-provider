@@ -78,3 +78,25 @@ jobs:
       - uses: crate-ci/typos@85f62a8a84f939ae994ab3763f01a0296d61a7ee # v1.36.2
         with:
           config: .typos.toml
+
+  shfmt:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - run: make shfmt
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: lumaxis/shellcheck-problem-matchers@b02a1715a00c729b20eed3ebb7edf56fa9a433ba # v2.1.0
+      - run: make shellcheck
+
+  prettier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: creyD/prettier_action@8c18391fdc98ed0d884c6345f03975edac71b8f0 # v4.6
+        with:
+          dry: true
+          prettier_options: --write .

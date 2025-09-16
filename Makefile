@@ -11,6 +11,12 @@ REGISTRIES_CONF ?= /etc/containers/registries.conf
 GOLANGCI_LINT := $(BUILD_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION := v2.4.0
 
+SHFMT := $(BUILD_DIR)/shfmt
+SHFMT_VERSION := v3.12.0
+
+SHELLCHECK := $(BUILD_DIR)/shellcheck
+SHELLCHECK_VERSION := v0.11.0
+
 ZEITGEIST := $(BUILD_DIR)/zeitgeist
 ZEITGEIST_VERSION := v0.5.4
 
@@ -71,3 +77,28 @@ $(ZEITGEIST): $(BUILD_DIR)
 .PHONY: dependencies
 dependencies: $(ZEITGEIST) ## Verify the local dependencies
 	$(ZEITGEIST) validate --local-only --base-path . --config dependencies.yaml
+
+$(SHFMT): $(BUILD_DIR)
+	$(call curl_to,https://github.com/mvdan/sh/releases/download/$(SHFMT_VERSION)/shfmt_$(SHFMT_VERSION)_linux_amd64,$(SHFMT))
+
+.PHONY: shellfiles
+shellfiles: ${SHFMT}
+	$(eval SHELLFILES=$(shell $(SHFMT) -f .))
+
+.PHONY: shfmt
+shfmt: shellfiles ## Run shfmt on all shell files
+	$(SHFMT) -ln bash -w -i 4 -d $(SHELLFILES)
+
+$(SHELLCHECK): $(BUILD_DIR)
+	URL=https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/shellcheck-$(SHELLCHECK_VERSION).linux.x86_64.tar.xz \
+	SHA256SUM=4da528ddb3a4d1b7b24a59d4e16eb2f5fd960f4bd9a3708a15baddbdf1d5a55b && \
+	curl -sSfL $$URL | tar xfJ - -C $(BUILD_DIR) --strip 1 shellcheck-$(SHELLCHECK_VERSION)/shellcheck && \
+	sha256sum $(SHELLCHECK) | grep -q $$SHA256SUM
+
+.PHONY: shellcheck
+shellcheck: shellfiles $(SHELLCHECK) ## Run shellcheck on all shell files
+	$(SHELLCHECK) \
+		-P test \
+		-P test/registry \
+		-x \
+		$(SHELLFILES)

@@ -8,14 +8,14 @@ cd $ROOT
 ```
 
 ```console
-go build -ldflags "-X main.registriesConfPath=$ROOT/test/registries.conf" -o build/credential-provider
+make REGISTRIES_CONF=$ROOT/test/registries.conf
 ```
 
 Run Kubernetes (possibly via [`hack/local-up-cluster.sh`](https://github.com/kubernetes/kubernetes/blob/master/hack/local-up-cluster.sh)):
 
 ```console
 export FEATURE_GATES=KubeletServiceAccountTokenForCredentialProviders=true
-export KUBELET_FLAGS="--image-credential-provider-bin-dir=$ROOT/build --image-credential-provider-config=$ROOT/cluster/credential-provider-config.yaml"
+export KUBELET_FLAGS="--image-credential-provider-bin-dir=$ROOT/build --image-credential-provider-config=$ROOT/test/cluster/credential-provider-config.yml"
 ```
 
 ```console
@@ -38,18 +38,18 @@ Run the `localhost:5000` registry which uses basic auth:
 Apply the cluster RBAC and examples:
 
 ```console
-kubectl apply -f cluster/rbac.yml -f cluster/example-secret.yml
+kubectl apply -f test/cluster/rbac.yml -f test/cluster/secret.yml
 ```
 
-Run the test workload:
+Finally, run the test workload:
 
 ```console
-kubectl apply -f cluster/example-pod.yml
+kubectl apply -f test/cluster/pod.yml
 ```
 
-The credential provider writes an additional file `/tmp/[namespace]-auth.json`
-which can be consumed by CRI-O. The CRI-O logs will state that the mirror is
-being used and not the original registry:
+The credential provider writes an additional file which can be consumed by
+CRI-O. The CRI-O logs will state that the mirror is being used and not the
+original registry:
 
 ```text
 INFO[2025-09-11T10:01:26.915456743+02:00] Trying to access "localhost:5000/library/nginx:latest"
