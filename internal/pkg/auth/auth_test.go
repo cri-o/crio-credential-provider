@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"encoding/base64"
@@ -9,44 +9,10 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
+
+	"github.com/cri-o/credential-provider/internal/pkg/config"
+	"github.com/cri-o/credential-provider/internal/pkg/docker"
 )
-
-func TestMatchMirrors(t *testing.T) {
-	// Create a temporary registries.conf
-	dir := t.TempDir()
-	confPath := filepath.Join(dir, "registries.conf")
-
-	conf := `unqualified-search-registries = ["quay.io"]
-
-[[registry]]
-location = "quay.io"
-
-  [[registry.mirror]]
-  location = "mirror.quay.io"
-
-  [[registry.mirror]]
-  location = "cache.local:5000"
-`
-	if err := os.WriteFile(confPath, []byte(conf), 0o600); err != nil {
-		t.Fatalf("failed to write temp registries.conf: %v", err)
-	}
-
-	req := &cpv1.CredentialProviderRequest{Image: "quay.io/library/nginx"}
-
-	mirrors, err := matchMirrors(req, confPath)
-	if err != nil {
-		t.Fatalf("matchMirrors returned error: %v", err)
-	}
-
-	if len(mirrors) != 2 {
-		t.Fatalf("expected 2 mirrors, got %d: %#v", len(mirrors), mirrors)
-	}
-
-	if mirrors[0] != "mirror.quay.io" || mirrors[1] != "cache.local:5000" {
-		t.Fatalf("unexpected mirrors order/content: %#v", mirrors)
-	}
-}
 
 func TestUpdateAuthContents(t *testing.T) {
 	secretUser := "su"
@@ -57,7 +23,7 @@ func TestUpdateAuthContents(t *testing.T) {
 	globalPass := "gp"
 	globalEncoded := base64.StdEncoding.EncodeToString([]byte(globalUser + ":" + globalPass))
 
-	assertHas := func(contents DockerConfigJSON, keys []string, expected string) {
+	assertHas := func(contents docker.ConfigJSON, keys []string, expected string) {
 		for _, k := range keys {
 			v, ok := contents.Auths[k]
 			if !ok {
@@ -70,7 +36,7 @@ func TestUpdateAuthContents(t *testing.T) {
 		}
 	}
 
-	assertMissing := func(contents DockerConfigJSON, keys []string) {
+	assertMissing := func(contents docker.ConfigJSON, keys []string) {
 		for _, k := range keys {
 			if _, ok := contents.Auths[k]; ok {
 				t.Fatalf("did not expect key %q in contents auths: %#v", k, contents.Auths)
@@ -152,13 +118,13 @@ func TestUpdateAuthContents(t *testing.T) {
 }
 
 func TestCreateAuthFile(t *testing.T) {
-	authDir = t.TempDir()
+	config.AuthDir = t.TempDir()
 
 	user := "u1"
 	pass := "p1"
 	auth := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
 
-	cfg := DockerConfigJSON{Auths: map[string]DockerAuthConfig{
+	cfg := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{
 		"quay.io":          {Auth: auth},
 		"cache.local:5000": {Auth: auth},
 		"registry.local":   {Auth: auth},
@@ -166,7 +132,7 @@ func TestCreateAuthFile(t *testing.T) {
 
 	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
-		t.Fatalf("marhsal auth config: %v", err)
+		t.Fatalf("marshal auth config: %v", err)
 	}
 
 	secret := corev1.Secret{
@@ -183,14 +149,14 @@ func TestCreateAuthFile(t *testing.T) {
 	image := "registry.local/app/img:1"
 	mirrors := []string{"mirror.quay.io", "cache.local:5000", "quay.io"}
 
-	path, err := createAuthFile(logger, secrets, "", authDir, namespace, image, mirrors)
+	path, err := CreateAuthFile(logger, secrets, "", config.AuthDir, namespace, image, mirrors)
 	if err != nil {
 		t.Fatalf("CreateAuthFile error: %v", err)
 	}
 
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	if wantPath := filepath.Join(authDir, namespace+".json"); path != wantPath {
+	if wantPath := filepath.Join(config.AuthDir, namespace+".json"); path != wantPath {
 		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
 	}
 
@@ -199,7 +165,7 @@ func TestCreateAuthFile(t *testing.T) {
 		t.Fatalf("read file: %v", err)
 	}
 
-	var written DockerConfigJSON
+	var written docker.ConfigJSON
 	if err := json.Unmarshal(data, &written); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -220,9 +186,9 @@ func TestCreateAuthFile(t *testing.T) {
 func buildSecretList(t *testing.T, encoded string, regs []string) *corev1.SecretList {
 	t.Helper()
 
-	cfg := DockerConfigJSON{Auths: map[string]DockerAuthConfig{}}
+	cfg := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{}}
 	for _, r := range regs {
-		cfg.Auths[r] = DockerAuthConfig{Auth: encoded}
+		cfg.Auths[r] = docker.AuthConfig{Auth: encoded}
 	}
 
 	cfgBytes, err := json.Marshal(cfg)
@@ -240,14 +206,14 @@ func buildSecretList(t *testing.T, encoded string, regs []string) *corev1.Secret
 	return &corev1.SecretList{Items: []corev1.Secret{secret}}
 }
 
-func buildGlobalConfig(encoded string, regs []string) DockerConfigJSON {
+func buildGlobalConfig(encoded string, regs []string) docker.ConfigJSON {
 	if len(regs) == 0 {
-		return DockerConfigJSON{}
+		return docker.ConfigJSON{}
 	}
 
-	g := DockerConfigJSON{Auths: map[string]DockerAuthConfig{}}
+	g := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{}}
 	for _, reg := range regs {
-		g.Auths[reg] = DockerAuthConfig{Auth: encoded}
+		g.Auths[reg] = docker.AuthConfig{Auth: encoded}
 	}
 
 	return g
