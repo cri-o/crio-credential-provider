@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -37,7 +38,7 @@ func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, globalAuthFilePat
 	}
 
 	// Write the namespace auth file to the auth directory /etc/crio/<namespace>-auth.json
-	path, err := writeAuthFile(authDir, namespace, authfileContents)
+	path, err := writeAuthFile(authDir, image, namespace, authfileContents)
 	if err != nil {
 		return "", fmt.Errorf("unable to write namespace auth file: %w", err)
 	}
@@ -178,7 +179,7 @@ func normalizeSecretRegistry(reg string) string {
 	return trimmed
 }
 
-func writeAuthFile(dir, namespace string, fileContents docker.ConfigJSON) (string, error) {
+func writeAuthFile(dir, image, namespace string, fileContents docker.ConfigJSON) (string, error) {
 	if fileContents.Auths == nil {
 		return "", errors.New("no auths found in file contents")
 	}
@@ -188,7 +189,13 @@ func writeAuthFile(dir, namespace string, fileContents docker.ConfigJSON) (strin
 		return "", fmt.Errorf("marshal auth file: %w", err)
 	}
 
-	path := filepath.Join(dir, namespace+".json")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("ensure auth dir %q: %w", dir, err)
+	}
+
+	hash := sha256.Sum256([]byte(image))
+	path := filepath.Join(dir, fmt.Sprintf("%s-%x.json", namespace, hash))
+
 	if err := os.WriteFile(path, bytes, 0o600); err != nil {
 		return "", fmt.Errorf("write auth file: %w", err)
 	}
