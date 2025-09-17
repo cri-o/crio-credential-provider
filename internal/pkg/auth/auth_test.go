@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"github.com/tj/assert"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/cri-o/credential-provider/internal/pkg/config"
@@ -75,6 +77,14 @@ func TestUpdateAuthContents(t *testing.T) {
 			wantSecretRegs: []string{"quay.io"},
 		},
 		{
+			name:           "mirror path with sub-namespaces match (with scheme in secret)",
+			globalRegs:     []string{},
+			secretRegs:     []string{"https://quay.io"},
+			image:          "example.com/foo:tag",
+			mirrors:        []string{"quay.io/foo"},
+			wantSecretRegs: []string{"quay.io"},
+		},
+		{
 			name:           "image-only match (with scheme in secret)",
 			globalRegs:     []string{},
 			secretRegs:     []string{"http://registry.local"},
@@ -84,12 +94,13 @@ func TestUpdateAuthContents(t *testing.T) {
 			notWantRegs:    []string{"quay.io"},
 		},
 		{
-			name:       "no matches returns error",
-			globalRegs: []string{"keep.io"},
-			secretRegs: []string{"quay.io"},
-			image:      "nomatch.local/foo:tag",
-			mirrors:    []string{"cache.local:5000"},
-			wantErr:    true,
+			name:           "no mirror or image matches in secret, returns global secret",
+			globalRegs:     []string{"keep.io", "nomatch.local"},
+			secretRegs:     []string{"quay.io"},
+			image:          "nomatch.local/foo:tag",
+			mirrors:        []string{"cache.local:5000"},
+			wantGlobalRegs: []string{"keep.io", "nomatch.local"},
+			wantErr:        false,
 		},
 	}
 
@@ -99,18 +110,7 @@ func TestUpdateAuthContents(t *testing.T) {
 			secrets := buildSecretList(t, secretEncoded, tt.secretRegs)
 			globalContents := buildGlobalConfig(globalEncoded, tt.globalRegs)
 
-			contents, err := updateAuthContents(logger, secrets, globalContents, tt.image, tt.mirrors)
-			if err == nil && tt.wantErr {
-				t.Fatalf("expected error, got nil")
-			}
-
-			if err != nil && !tt.wantErr {
-				t.Fatalf("updateAuthContents error: %v", err)
-			}
-
-			if tt.wantErr {
-				return
-			}
+			contents := updateAuthContents(logger, secrets, globalContents, tt.image, tt.mirrors)
 
 			assertHas(contents, tt.wantSecretRegs, secretEncoded)
 			assertHas(contents, tt.wantGlobalRegs, globalEncoded)
@@ -159,31 +159,22 @@ func TestCreateAuthFile(t *testing.T) {
 
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	if wantPath := filepath.Join(config.AuthDir, fmt.Sprintf("%s-%x.json", namespace, imageHash)); path != wantPath {
-		t.Fatalf("unexpected path: got %q want %q", path, wantPath)
-	}
+	wantPath := filepath.Join(config.AuthDir, fmt.Sprintf("%s-%x.json", namespace, imageHash))
+	assert.Equal(t, wantPath, path)
 
 	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read file: %v", err)
-	}
+	require.NoError(t, err)
 
 	var written docker.ConfigJSON
-	if err := json.Unmarshal(data, &written); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
+
+	err = json.Unmarshal(data, &written)
+	require.NoError(t, err)
+
 	// Expect entries for quay.io (mirror match) and registry.local (image match)
-	if _, ok := written.Auths["quay.io"]; !ok {
-		t.Fatalf("expected quay.io entry in written auths: %#v", written.Auths)
-	}
-
-	if _, ok := written.Auths["registry.local"]; !ok {
-		t.Fatalf("expected registry.local entry in written auths: %#v", written.Auths)
-	}
-
-	if _, ok := written.Auths["cache.local:5000"]; !ok {
-		t.Fatalf("expected cache.local:5000 entry in written auths: %#v", written.Auths)
-	}
+	assert.Len(t, written.Auths, len(cfg.Auths))
+	assert.Contains(t, written.Auths, "quay.io")
+	assert.Contains(t, written.Auths, "registry.local")
+	assert.Contains(t, written.Auths, "cache.local:5000")
 }
 
 func buildSecretList(t *testing.T, encoded string, regs []string) *corev1.SecretList {
@@ -220,4 +211,41 @@ func buildGlobalConfig(encoded string, regs []string) docker.ConfigJSON {
 	}
 
 	return g
+}
+
+func TestReadGlobalAuthFile(t *testing.T) {
+	// Create a temporary auth.json
+	dir := t.TempDir()
+	authPath := filepath.Join(dir, "auth.json")
+
+	conf := `{
+	"auths": {
+		"docker.io": {
+			"auth": "Z3U6Z3A="
+		},
+		"registry.redhat.io": {
+			"auth": "Z3U6Z3A="
+		}
+	}
+}
+`
+	if err := os.WriteFile(authPath, []byte(conf), 0o600); err != nil {
+		t.Fatalf("failed to write temp auth.json: %v", err)
+	}
+
+	t.Cleanup(func() { _ = os.Remove(authPath) })
+
+	contents, err := readGlobalAuthFile(authPath)
+	require.NoError(t, err)
+	// Expect 2 entries
+	assert.Len(t, contents.Auths, 2)
+	assert.Contains(t, contents.Auths, "docker.io")
+	assert.Contains(t, contents.Auths, "registry.redhat.io")
+	assert.Equal(t, "Z3U6Z3A=", contents.Auths["docker.io"].Auth)
+	assert.Equal(t, "Z3U6Z3A=", contents.Auths["registry.redhat.io"].Auth)
+
+	nonexistPath := "/nonexistent/auth.json"
+	contents, err = readGlobalAuthFile(nonexistPath)
+	require.NoError(t, err)
+	assert.Len(t, contents.Auths, 0)
 }

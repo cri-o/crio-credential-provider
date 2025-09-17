@@ -9,7 +9,7 @@ type ConfigJSON struct {
 
 // AuthConfig is a single registry's auth configuration.
 type AuthConfig struct {
-	// AUth is the base64 encoded credential in the format user:password.
+	// Auth is the base64 encoded credential in the format user:password.
 	Auth string `json:"auth,omitempty"`
 }
 
