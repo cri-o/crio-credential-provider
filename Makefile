@@ -1,6 +1,7 @@
 GO ?= go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
+CGO_ENABLED ?= 0
 
 PROJECT := credential-provider
 BUILD_DIR := build
@@ -43,7 +44,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
-	GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-X github.com/cri-o/credential-provider/internal/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/credential-provider
+	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-s -w -X github.com/cri-o/credential-provider/internal/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/credential-provider
 
 .PHONY: clean
 clean: ## Clean the build directory
