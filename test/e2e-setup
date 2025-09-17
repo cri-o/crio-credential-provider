@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euox pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+cd "$SCRIPT_DIR"
+
+# Install Kubernetes and CRI-O
+KUBERNETES_VERSION=v1.34
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
+curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/main/deb/Release.key | gpg --batch --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg
+echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/main/deb/ /" | tee /etc/apt/sources.list.d/cri-o.list
+apt-get update
+apt-get install -y \
+    cri-o \
+    kubelet \
+    kubeadm \
+    kubectl
+
+# Setup CRI-O
+cp registries.conf /etc/containers/registries.conf
+systemctl enable --now crio
+
+# Use the kubeadm default service account token audience
+CREDENTIAL_PROVIDER_CONFIG="$SCRIPT_DIR/cluster/credential-provider-config.yml"
+sed -i "s;kubernetes.default.svc;kubernetes.default.svc.cluster.local;g" "$CREDENTIAL_PROVIDER_CONFIG"
+
+# Setup cluster
+KUBEADM_CONFIG=$(mktemp)
+cat >"$KUBEADM_CONFIG" <<EOL
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: $(ip route get 1.2.3.4 | cut -d ' ' -f7 | tr -d '[:space:]')
+  bindPort: 6443
+nodeRegistration:
+  name: 127.0.0.1
+  criSocket: unix:///var/run/crio/crio.sock
+  kubeletExtraArgs:
+    - name: image-credential-provider-bin-dir
+      value: $(dirname "$SCRIPT_DIR")/build
+    - name: image-credential-provider-config
+      value: $CREDENTIAL_PROVIDER_CONFIG
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+featureGates:
+  KubeletServiceAccountTokenForCredentialProviders: true
+EOL
+swapoff -a
+kubeadm init --config="$KUBEADM_CONFIG"
+
+# Setup kubectl
+USER=runner
+mkdir /home/$USER/.kube
+
+KUBECONFIG=/etc/kubernetes/admin.conf
+cp $KUBECONFIG /home/$USER/.kube/config
+chown -R $USER:$USER /home/$USER/.kube
+
+mkdir /root/.kube
+cp $KUBECONFIG /root/.kube/config
+
+# Configure cluster
+TIMEOUT=180s
+kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+kubectl wait -n kube-system --timeout=$TIMEOUT --for=condition=available deploy coredns
+kubectl wait --timeout=$TIMEOUT --for=condition=ready pods --all -A

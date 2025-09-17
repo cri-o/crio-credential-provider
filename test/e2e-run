@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euox pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+cd "$SCRIPT_DIR"
+
+# Start the local container registry
+registry/start
+
+# Setup the requirements and run the test pod
+kubectl apply \
+    -f cluster/rbac.yml \
+    -f cluster/secret.yml \
+    -f cluster/pod.yml
+kubectl wait --for=condition=ready pod/test-pod
+
+# Do assertions
+# TODO: Expand them when https://github.com/cri-o/cri-o/pull/9463 got merged
+LOGS=../logs
+sed -i -E 's;.*.go:[0-9]+:\s(.*);\1;' "$LOGS"
+
+EXPECTED=$(mktemp expected_XXXXXXX)
+trap 'rm "$EXPECTED"' EXIT
+
+cat >"$EXPECTED" <<EOL
+Running credential provider
+Reading from stdin
+Got stdin, parsing JSON as CredentialProviderRequest
+Parsed credential provider request for image "docker.io/library/nginx"
+Normalized provided image name from "docker.io/library/nginx" to "docker.io/library/nginx:latest"
+Parsing namespace from request
+Getting secrets from namespace: default
+Got 1 secret(s)
+Matching mirrors for registry config: /etc/containers/registries.conf
+Got mirror(s) for "docker.io/library/nginx:latest": "localhost:5000"
+Parsing secret: my-secret
+Found docker config JSON auth in secret "my-secret" for "http://localhost:5000"
+Checking if mirror "localhost:5000" matches registry "localhost:5000"
+Using mirror auth "localhost:5000" for registry from secret "localhost:5000"
+Wrote auth file to /etc/crio/auth/default-86cee2c10898a48ff47a0626f8202a2408b5893aff5df58ae10d83166e6d7b0e.json with 1 number of entries
+Auth file path: /etc/crio/auth/default-86cee2c10898a48ff47a0626f8202a2408b5893aff5df58ae10d83166e6d7b0e.json
+EOL
+
+diff "$LOGS" "$EXPECTED"

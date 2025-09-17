@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"go.podman.io/image/v5/docker/reference"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 
@@ -48,6 +49,15 @@ func Run() error {
 
 	l.Printf("Parsed credential provider request for image %q", req.Image)
 
+	image, err := reference.ParseDockerRef(req.Image)
+	if err != nil {
+		return fmt.Errorf("parse image name: %w", err)
+	}
+
+	if req.Image != image.String() {
+		l.Printf("Normalized provided image name from %q to %q", req.Image, image)
+	}
+
 	l.Print("Parsing namespace from request")
 
 	namespace, err := k8s.ExtractNamespace(req)
@@ -75,9 +85,9 @@ func Run() error {
 		return fmt.Errorf("unable to match mirrors: %w", err)
 	}
 
-	l.Printf("Got mirror(s) for %q: %q", req.Image, strings.Join(mirrors, ", "))
+	l.Printf("Got mirror(s) for %q: %q", image, strings.Join(mirrors, ", "))
 
-	authFilePath, err := auth.CreateAuthFile(l, secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, req.Image, mirrors)
+	authFilePath, err := auth.CreateAuthFile(l, secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, image.String(), mirrors)
 	if err != nil {
 		return fmt.Errorf("unable to create auth file: %w", err)
 	}
