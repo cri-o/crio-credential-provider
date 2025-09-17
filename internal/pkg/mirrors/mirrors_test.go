@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/tj/assert"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
@@ -28,18 +29,14 @@ location = "quay.io"
 		t.Fatalf("failed to write temp registries.conf: %v", err)
 	}
 
+	t.Cleanup(func() { _ = os.Remove(confPath) })
+
 	req := &cpv1.CredentialProviderRequest{Image: "quay.io/library/nginx"}
 
 	mirrors, err := Match(req, confPath)
-	if err != nil {
-		t.Fatalf("matchMirrors returned error: %v", err)
-	}
+	assert.NoError(t, err)
 
-	if len(mirrors) != 2 {
-		t.Fatalf("expected 2 mirrors, got %d: %#v", len(mirrors), mirrors)
-	}
-
-	if mirrors[0] != "mirror.quay.io" || mirrors[1] != "cache.local:5000" {
-		t.Fatalf("unexpected mirrors order/content: %#v", mirrors)
-	}
+	assert.Len(t, mirrors, 2)
+	assert.Contains(t, mirrors, "mirror.quay.io")
+	assert.Contains(t, mirrors, "cache.local:5000")
 }

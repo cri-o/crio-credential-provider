@@ -32,10 +32,7 @@ func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, globalAuthFilePat
 		return "", fmt.Errorf("unable to read global auth file: %w", err)
 	}
 
-	authfileContents, err := updateAuthContents(l, secrets, globalAuthContents, image, mirrors)
-	if err != nil {
-		return "", fmt.Errorf("unable to get namespace auth contents: %w", err)
-	}
+	authfileContents := updateAuthContents(l, secrets, globalAuthContents, image, mirrors)
 
 	// Write the namespace auth file to the auth directory /etc/crio/<namespace>-auth.json
 	path, err := writeAuthFile(authDir, image, namespace, authfileContents)
@@ -56,22 +53,20 @@ func readGlobalAuthFile(path string) (docker.ConfigJSON, error) {
 		if os.IsNotExist(err) {
 			fileContents.Auths = map[string]docker.AuthConfig{}
 
-			log.Printf("Global auth file does not exist, creating empty auths")
-
 			return fileContents, nil
 		}
 
 		return docker.ConfigJSON{}, fmt.Errorf("unable to read global auth file: %w", err)
 	}
 
-	if err = json.Unmarshal(raw, &fileContents.Auths); err != nil {
+	if err = json.Unmarshal(raw, &fileContents); err != nil {
 		return docker.ConfigJSON{}, fmt.Errorf("unmarshaling JSON at %q: %w", path, err)
 	}
 
 	return fileContents, nil
 }
 
-func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthContents docker.ConfigJSON, image string, mirrors []string) (docker.ConfigJSON, error) {
+func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthContents docker.ConfigJSON, image string, mirrors []string) docker.ConfigJSON {
 	// Collect all matching auths keyed by registry or mirror
 	auths := make(map[string]docker.ConfigEntry)
 
@@ -99,9 +94,9 @@ func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthCon
 			for _, m := range mirrors {
 				l.Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
 
-				if strings.HasPrefix(trimmedRegistry, m) {
+				if strings.HasPrefix(m, trimmedRegistry) {
 					l.Printf("Using mirror auth %q for registry from secret %q", m, trimmedRegistry)
-					auths[m] = auth
+					auths[trimmedRegistry] = auth
 				}
 			}
 
@@ -114,8 +109,6 @@ func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthCon
 
 	if len(auths) == 0 {
 		l.Print("No docker auth found for any available secret")
-
-		return docker.ConfigJSON{}, errors.New("no docker auth found for any available secret")
 	}
 
 	// Merge global auth file contents with auths from secrets
@@ -130,7 +123,7 @@ func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthCon
 		fileContents.Auths[k] = docker.AuthConfig{Auth: encoded}
 	}
 
-	return fileContents, nil
+	return fileContents
 }
 
 func validDockerConfigSecret(secret corev1.Secret) (docker.ConfigJSON, error) {
@@ -180,7 +173,7 @@ func normalizeSecretRegistry(reg string) string {
 }
 
 func writeAuthFile(dir, image, namespace string, fileContents docker.ConfigJSON) (string, error) {
-	if fileContents.Auths == nil {
+	if len(fileContents.Auths) == 0 {
 		return "", errors.New("no auths found in file contents")
 	}
 
