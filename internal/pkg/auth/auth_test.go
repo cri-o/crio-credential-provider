@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tj/assert"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/cri-o/credential-provider/internal/pkg/config"
@@ -247,5 +247,5 @@ func TestReadGlobalAuthFile(t *testing.T) {
 	nonexistPath := "/nonexistent/auth.json"
 	contents, err = readGlobalAuthFile(nonexistPath)
 	require.NoError(t, err)
-	assert.Len(t, contents.Auths, 0)
+	assert.Empty(t, contents.Auths)
 }

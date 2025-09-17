@@ -5,7 +5,6 @@ go 1.25
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tj/assert v0.0.3
 	go.podman.io/image/v5 v5.37.0
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
