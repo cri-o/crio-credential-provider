@@ -5,7 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tj/assert"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
@@ -34,7 +35,7 @@ location = "quay.io"
 	req := &cpv1.CredentialProviderRequest{Image: "quay.io/library/nginx"}
 
 	mirrors, err := Match(req, confPath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Len(t, mirrors, 2)
 	assert.Contains(t, mirrors, "mirror.quay.io")
