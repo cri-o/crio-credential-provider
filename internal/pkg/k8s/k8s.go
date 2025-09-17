@@ -14,8 +14,14 @@ import (
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
+const k8sClaimKey = "kubernetes.io"
+
 // ExtractNamespace extracts the namespace from the provided credential provider request.
 func ExtractNamespace(req *cpv1.CredentialProviderRequest) (string, error) {
+	if req == nil {
+		return "", errors.New("request is empty")
+	}
+
 	if req.ServiceAccountToken == "" {
 		return "", errors.New("request service account token is empty")
 	}
@@ -25,16 +31,14 @@ func ExtractNamespace(req *cpv1.CredentialProviderRequest) (string, error) {
 		return "", fmt.Errorf("unable to parse JWT token: %w", err)
 	}
 
-	const claimName = "kubernetes.io"
-
-	k8sClaim, ok := claims[claimName]
+	k8sClaim, ok := claims[k8sClaimKey]
 	if !ok {
-		return "", fmt.Errorf("no %s claim name in JWT claims found", claimName)
+		return "", fmt.Errorf("no %s claim name in JWT claims found", k8sClaimKey)
 	}
 
 	k8sClaimMap, ok := k8sClaim.(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("%s claim does not contain a map", claimName)
+		return "", fmt.Errorf("%s claim does not contain a map", k8sClaimKey)
 	}
 
 	namespaceAny, ok := k8sClaimMap["namespace"]
