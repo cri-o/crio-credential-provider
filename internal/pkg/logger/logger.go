@@ -6,28 +6,28 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/journal"
 )
 
-// New createas a new default logger instance.
-func New() (*log.Logger, error) {
-	executable, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("unable to get executable name: %w", err)
-	}
+var (
+	instance *log.Logger
+	once     sync.Once
+)
 
-	fileName := filepath.Join(filepath.Dir(executable), "..", "logs")
+// L can be used to get the default logging instance.
+func L() *log.Logger {
+	once.Do(func() { instance = newLogger() })
 
-	file, err := os.Create(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("unable to open log file: %w", err)
-	}
+	return instance
+}
 
-	writer := io.MultiWriter(file, os.Stderr, &journalWriter{})
+// newLogger createas a new default logger instance.
+func newLogger() *log.Logger {
+	writer := io.MultiWriter(os.Stderr, &journalWriter{})
 
-	return log.New(writer, "", log.Ldate|log.Ltime|log.Lshortfile), nil
+	return log.New(writer, "", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
 type journalWriter struct{}

@@ -23,31 +23,26 @@ import (
 
 // Run is the main entry point for the whole credential provider application.
 func Run() error {
-	l, err := logger.New()
-	if err != nil {
-		return fmt.Errorf("unable to create logger: %w", err)
-	}
-
-	l.Print("Running credential provider")
+	logger.L().Print("Running credential provider")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	l.Print("Reading from stdin")
+	logger.L().Print("Reading from stdin")
 
 	stdinBytes, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("unable to get logger: %w", err)
 	}
 
-	l.Print("Got stdin, parsing JSON as CredentialProviderRequest")
+	logger.L().Print("Got stdin, parsing JSON as CredentialProviderRequest")
 
 	req := &cpv1.CredentialProviderRequest{}
 	if err := json.Unmarshal(stdinBytes, req); err != nil {
 		return fmt.Errorf("unable to parse JSON: %w", err)
 	}
 
-	l.Printf("Parsed credential provider request for image %q", req.Image)
+	logger.L().Printf("Parsed credential provider request for image %q", req.Image)
 
 	image, err := reference.ParseDockerRef(req.Image)
 	if err != nil {
@@ -55,10 +50,10 @@ func Run() error {
 	}
 
 	if req.Image != image.String() {
-		l.Printf("Normalized provided image name from %q to %q", req.Image, image)
+		logger.L().Printf("Normalized provided image name from %q to %q", req.Image, image)
 	}
 
-	l.Print("Parsing namespace from request")
+	logger.L().Print("Parsing namespace from request")
 
 	namespace, err := k8s.ExtractNamespace(req)
 	if err != nil {
@@ -69,30 +64,30 @@ func Run() error {
 		return fmt.Errorf("unable to extract namespace from request: %w", err)
 	}
 
-	l.Printf("Getting secrets from namespace: %s", namespace)
+	logger.L().Printf("Getting secrets from namespace: %s", namespace)
 
 	secrets, err := k8s.RetrieveSecrets(ctx, req.ServiceAccountToken, namespace)
 	if err != nil {
 		return fmt.Errorf("unable to get secrets: %w", err)
 	}
 
-	l.Printf("Got %d secret(s)", len(secrets.Items))
+	logger.L().Printf("Got %d secret(s)", len(secrets.Items))
 
-	l.Printf("Matching mirrors for registry config: %s", config.RegistriesConfPath)
+	logger.L().Printf("Matching mirrors for registry config: %s", config.RegistriesConfPath)
 
 	mirrors, err := mirrors.Match(req, config.RegistriesConfPath)
 	if err != nil {
 		return fmt.Errorf("unable to match mirrors: %w", err)
 	}
 
-	l.Printf("Got mirror(s) for %q: %q", image, strings.Join(mirrors, ", "))
+	logger.L().Printf("Got mirror(s) for %q: %q", image, strings.Join(mirrors, ", "))
 
-	authFilePath, err := auth.CreateAuthFile(l, secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, image.String(), mirrors)
+	authFilePath, err := auth.CreateAuthFile(secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, image.String(), mirrors)
 	if err != nil {
 		return fmt.Errorf("unable to create auth file: %w", err)
 	}
 
-	l.Printf("Auth file path: %s", authFilePath)
+	logger.L().Printf("Auth file path: %s", authFilePath)
 
 	// Provide an empty response to the kubelet
 	if err := json.NewEncoder(os.Stdout).Encode(cpv1.CredentialProviderResponse{
