@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,10 +14,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/cri-o/credential-provider/internal/pkg/docker"
+	"github.com/cri-o/credential-provider/internal/pkg/logger"
 )
 
 // CreateAuthFile can be used to create a auth file to /etc/crio/auth which follows the convention for CRI-O consumption.
-func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, globalAuthFilePath, authDir, namespace, image string, mirrors []string) (string, error) {
+func CreateAuthFile(secrets *corev1.SecretList, globalAuthFilePath, authDir, namespace, image string, mirrors []string) (string, error) {
 	if namespace == "" {
 		return "", errors.New("namespace is empty")
 	}
@@ -32,7 +32,7 @@ func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, globalAuthFilePat
 		return "", fmt.Errorf("unable to read global auth file: %w", err)
 	}
 
-	authfileContents := updateAuthContents(l, secrets, globalAuthContents, image, mirrors)
+	authfileContents := updateAuthContents(secrets, globalAuthContents, image, mirrors)
 
 	// Write the namespace auth file to the auth directory /etc/crio/<namespace>-auth.json
 	path, err := writeAuthFile(authDir, image, namespace, authfileContents)
@@ -40,7 +40,7 @@ func CreateAuthFile(l *log.Logger, secrets *corev1.SecretList, globalAuthFilePat
 		return "", fmt.Errorf("unable to write namespace auth file: %w", err)
 	}
 
-	l.Printf("Wrote auth file to %s with %d number of entries", path, len(authfileContents.Auths))
+	logger.L().Printf("Wrote auth file to %s with %d number of entries", path, len(authfileContents.Auths))
 
 	return path, nil
 }
@@ -66,49 +66,49 @@ func readGlobalAuthFile(path string) (docker.ConfigJSON, error) {
 	return fileContents, nil
 }
 
-func updateAuthContents(l *log.Logger, secrets *corev1.SecretList, globalAuthContents docker.ConfigJSON, image string, mirrors []string) docker.ConfigJSON {
+func updateAuthContents(secrets *corev1.SecretList, globalAuthContents docker.ConfigJSON, image string, mirrors []string) docker.ConfigJSON {
 	// Collect all matching auths keyed by registry or mirror
 	auths := make(map[string]docker.ConfigEntry)
 
 	for _, secret := range secrets.Items {
-		l.Printf("Parsing secret: %s", secret.Name)
+		logger.L().Printf("Parsing secret: %s", secret.Name)
 
 		dockerConfigJSON, err := validDockerConfigSecret(secret)
 		if err != nil {
-			l.Printf("Skipping secret %q: %v", secret.Name, err)
+			logger.L().Printf("Skipping secret %q: %v", secret.Name, err)
 
 			continue
 		}
 
 		for registry, authConfig := range dockerConfigJSON.Auths {
-			l.Printf("Found docker config JSON auth in secret %q for %q", secret.Name, registry)
+			logger.L().Printf("Found docker config JSON auth in secret %q for %q", secret.Name, registry)
 
 			auth, err := decodeDockerAuth(authConfig)
 			if err != nil {
-				l.Printf("Skipping secret %q because the docker config JSON auth is not parsable: %v", secret.Name, err)
+				logger.L().Printf("Skipping secret %q because the docker config JSON auth is not parsable: %v", secret.Name, err)
 
 				continue
 			}
 
 			trimmedRegistry := normalizeSecretRegistry(registry)
 			for _, m := range mirrors {
-				l.Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
+				logger.L().Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
 
 				if strings.HasPrefix(m, trimmedRegistry) {
-					l.Printf("Using mirror auth %q for registry from secret %q", m, trimmedRegistry)
+					logger.L().Printf("Using mirror auth %q for registry from secret %q", m, trimmedRegistry)
 					auths[trimmedRegistry] = auth
 				}
 			}
 
 			if strings.HasPrefix(image, trimmedRegistry) {
-				l.Printf("Using auth for registry %q matching image %q", trimmedRegistry, image)
+				logger.L().Printf("Using auth for registry %q matching image %q", trimmedRegistry, image)
 				auths[trimmedRegistry] = auth
 			}
 		}
 	}
 
 	if len(auths) == 0 {
-		l.Print("No docker auth found for any available secret")
+		logger.L().Print("No docker auth found for any available secret")
 	}
 
 	// Merge global auth file contents with auths from secrets

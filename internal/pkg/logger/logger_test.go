@@ -1,8 +1,9 @@
 package logger
 
 import (
+	"bytes"
+	"io"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,17 +23,23 @@ func TestNew(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			l, err := New()
-			require.NoError(t, err)
-			l.Print(tc.message)
+			prevStdErr := os.Stderr
+			r, w, _ := os.Pipe()
+			os.Stderr = w
 
-			executable, err := os.Executable()
+			L().Print(tc.message)
+			L().Print(tc.message)
+
+			require.NoError(t, w.Close())
+
+			buf := bytes.Buffer{}
+
+			_, err := io.Copy(&buf, r)
 			require.NoError(t, err)
 
-			logFileContents, err := os.ReadFile(filepath.Join(executable, "../../logs"))
-			require.NoError(t, err)
+			os.Stderr = prevStdErr
 
-			assert.Contains(t, string(logFileContents), tc.message)
+			assert.Contains(t, buf.String(), tc.message)
 		})
 	}
 }

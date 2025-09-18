@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -106,11 +105,10 @@ func TestUpdateAuthContents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logger := log.New(os.Stderr, "", 0)
 			secrets := buildSecretList(t, secretEncoded, tt.secretRegs)
 			globalContents := buildGlobalConfig(globalEncoded, tt.globalRegs)
 
-			contents := updateAuthContents(logger, secrets, globalContents, tt.image, tt.mirrors)
+			contents := updateAuthContents(secrets, globalContents, tt.image, tt.mirrors)
 
 			assertHas(contents, tt.wantSecretRegs, secretEncoded)
 			assertHas(contents, tt.wantGlobalRegs, globalEncoded)
@@ -146,13 +144,12 @@ func TestCreateAuthFile(t *testing.T) {
 
 	secrets := &corev1.SecretList{Items: []corev1.Secret{secret}}
 
-	logger := log.New(os.Stderr, "", 0)
 	namespace := "ns-unit"
 	image := "registry.local/app/img:1"
 	imageHash := sha256.Sum256([]byte(image))
 	mirrors := []string{"mirror.quay.io", "cache.local:5000", "quay.io"}
 
-	path, err := CreateAuthFile(logger, secrets, "", config.AuthDir, namespace, image, mirrors)
+	path, err := CreateAuthFile(secrets, "", config.AuthDir, namespace, image, mirrors)
 	if err != nil {
 		t.Fatalf("CreateAuthFile error: %v", err)
 	}
