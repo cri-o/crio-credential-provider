@@ -41,18 +41,17 @@ Running credential provider
 Reading from stdin
 Got stdin, parsing JSON as CredentialProviderRequest
 Parsed credential provider request for image "docker.io/library/nginx"
-Normalized provided image name from "docker.io/library/nginx" to "docker.io/library/nginx:latest"
 Parsing namespace from request
 Matching mirrors for registry config: /etc/containers/registries.conf
-Got mirror(s) for "docker.io/library/nginx:latest": "localhost:5000"
+Got mirror(s) for "docker.io/library/nginx": "localhost:5000"
 Getting secrets from namespace: default
 Got 1 secret(s)
 Parsing secret: my-secret
 Found docker config JSON auth in secret "my-secret" for "http://localhost:5000"
 Checking if mirror "localhost:5000" matches registry "localhost:5000"
 Using mirror auth "localhost:5000" for registry from secret "localhost:5000"
-Wrote auth file to /etc/crio/auth/default-86cee2c10898a48ff47a0626f8202a2408b5893aff5df58ae10d83166e6d7b0e.json with 1 number of entries
-Auth file path: /etc/crio/auth/default-86cee2c10898a48ff47a0626f8202a2408b5893aff5df58ae10d83166e6d7b0e.json
+Wrote auth file to /etc/crio/auth/default-7e59ad64326bc321517fb6fc6586de5ee149178394d9edfa2a877176cdf6fad5.json with 1 number of entries
+Auth file path: /etc/crio/auth/default-7e59ad64326bc321517fb6fc6586de5ee149178394d9edfa2a877176cdf6fad5.json
 EOL
 
 # Second test result
@@ -61,7 +60,6 @@ Running credential provider
 Reading from stdin
 Got stdin, parsing JSON as CredentialProviderRequest
 Parsed credential provider request for image "docker.io/library/nginx"
-Normalized provided image name from "docker.io/library/nginx" to "docker.io/library/nginx:latest"
 Parsing namespace from request
 Matching mirrors for registry config: /etc/containers/registries.conf
 No mirrors found, will not write any auth file

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"go.podman.io/image/v5/docker/reference"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 
@@ -49,16 +48,13 @@ func Run() error {
 		return fmt.Errorf("unable to parse JSON: %w", err)
 	}
 
+	// req.Image does not contain the full image reference. It's a result of
+	// `res, _ := reference.ParseNormalizedNamed()` where `res.Name()` get's passed down
+	// to each credential provider. See:
+	// https://github.com/kubernetes/kubernetes/blob/6070f5a/pkg/kubelet/images/image_manager.go#L192-L195
+	// which calls into:
+	// https://github.com/kubernetes/kubernetes/blob/6070f5a/pkg/util/parsers/parsers.go#L29-L37
 	logger.L().Printf("Parsed credential provider request for image %q", req.Image)
-
-	image, err := reference.ParseDockerRef(req.Image)
-	if err != nil {
-		return fmt.Errorf("parse image name: %w", err)
-	}
-
-	if req.Image != image.String() {
-		logger.L().Printf("Normalized provided image name from %q to %q", req.Image, image)
-	}
 
 	logger.L().Print("Parsing namespace from request")
 
@@ -84,7 +80,7 @@ func Run() error {
 		return response()
 	}
 
-	logger.L().Printf("Got mirror(s) for %q: %q", image, strings.Join(mirrors, ", "))
+	logger.L().Printf("Got mirror(s) for %q: %q", req.Image, strings.Join(mirrors, ", "))
 
 	logger.L().Printf("Getting secrets from namespace: %s", namespace)
 
@@ -98,7 +94,7 @@ func Run() error {
 
 	logger.L().Printf("Got %d secret(s)", len(secrets.Items))
 
-	authFilePath, err := auth.CreateAuthFile(secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, image.String(), mirrors)
+	authFilePath, err := auth.CreateAuthFile(secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, req.Image, mirrors)
 	if err != nil {
 		return fmt.Errorf("unable to create auth file: %w", err)
 	}
