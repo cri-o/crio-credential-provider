@@ -25,8 +25,15 @@ import (
 func Run() error {
 	logger.L().Print("Running credential provider")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+	if _, err := os.Stat(config.RegistriesConfPath); err != nil {
+		if os.IsNotExist(err) {
+			logger.L().Printf("Registries conf path %q does not exist, stopping", config.RegistriesConfPath)
+
+			return response()
+		}
+
+		return fmt.Errorf("unable to access registries conf path %q: %w", config.RegistriesConfPath, err)
+	}
 
 	logger.L().Print("Reading from stdin")
 
@@ -64,7 +71,25 @@ func Run() error {
 		return fmt.Errorf("unable to extract namespace from request: %w", err)
 	}
 
+	logger.L().Printf("Matching mirrors for registry config: %s", config.RegistriesConfPath)
+
+	mirrors, err := mirrors.Match(req, config.RegistriesConfPath)
+	if err != nil {
+		return fmt.Errorf("unable to match mirrors: %w", err)
+	}
+
+	if len(mirrors) == 0 {
+		logger.L().Printf("No mirrors found, will not write any auth file")
+
+		return response()
+	}
+
+	logger.L().Printf("Got mirror(s) for %q: %q", image, strings.Join(mirrors, ", "))
+
 	logger.L().Printf("Getting secrets from namespace: %s", namespace)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 
 	secrets, err := k8s.RetrieveSecrets(ctx, req.ServiceAccountToken, namespace)
 	if err != nil {
@@ -73,15 +98,6 @@ func Run() error {
 
 	logger.L().Printf("Got %d secret(s)", len(secrets.Items))
 
-	logger.L().Printf("Matching mirrors for registry config: %s", config.RegistriesConfPath)
-
-	mirrors, err := mirrors.Match(req, config.RegistriesConfPath)
-	if err != nil {
-		return fmt.Errorf("unable to match mirrors: %w", err)
-	}
-
-	logger.L().Printf("Got mirror(s) for %q: %q", image, strings.Join(mirrors, ", "))
-
 	authFilePath, err := auth.CreateAuthFile(secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, image.String(), mirrors)
 	if err != nil {
 		return fmt.Errorf("unable to create auth file: %w", err)
@@ -89,6 +105,10 @@ func Run() error {
 
 	logger.L().Printf("Auth file path: %s", authFilePath)
 
+	return response()
+}
+
+func response() error {
 	// Provide an empty response to the kubelet
 	if err := json.NewEncoder(os.Stdout).Encode(cpv1.CredentialProviderResponse{
 		TypeMeta: metav1.TypeMeta{
