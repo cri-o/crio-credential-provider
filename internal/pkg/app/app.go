@@ -14,29 +14,28 @@ import (
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 
 	"github.com/cri-o/credential-provider/internal/pkg/auth"
-	"github.com/cri-o/credential-provider/internal/pkg/config"
 	"github.com/cri-o/credential-provider/internal/pkg/k8s"
 	"github.com/cri-o/credential-provider/internal/pkg/logger"
 	"github.com/cri-o/credential-provider/internal/pkg/mirrors"
 )
 
 // Run is the main entry point for the whole credential provider application.
-func Run() error {
+func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath string, clientFunc k8s.ClientFunc) error {
 	logger.L().Print("Running credential provider")
 
-	if _, err := os.Stat(config.RegistriesConfPath); err != nil {
+	if _, err := os.Stat(registriesConfPath); err != nil {
 		if os.IsNotExist(err) {
-			logger.L().Printf("Registries conf path %q does not exist, stopping", config.RegistriesConfPath)
+			logger.L().Printf("Registries conf path %q does not exist, stopping", registriesConfPath)
 
 			return response()
 		}
 
-		return fmt.Errorf("unable to access registries conf path %q: %w", config.RegistriesConfPath, err)
+		return fmt.Errorf("unable to access registries conf path %q: %w", registriesConfPath, err)
 	}
 
 	logger.L().Print("Reading from stdin")
 
-	stdinBytes, err := io.ReadAll(os.Stdin)
+	stdinBytes, err := io.ReadAll(stdin)
 	if err != nil {
 		return fmt.Errorf("unable to get logger: %w", err)
 	}
@@ -67,9 +66,9 @@ func Run() error {
 		return fmt.Errorf("unable to extract namespace from request: %w", err)
 	}
 
-	logger.L().Printf("Matching mirrors for registry config: %s", config.RegistriesConfPath)
+	logger.L().Printf("Matching mirrors for registry config: %s", registriesConfPath)
 
-	mirrors, err := mirrors.Match(req, config.RegistriesConfPath)
+	mirrors, err := mirrors.Match(req, registriesConfPath)
 	if err != nil {
 		return fmt.Errorf("unable to match mirrors: %w", err)
 	}
@@ -87,14 +86,14 @@ func Run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	secrets, err := k8s.RetrieveSecrets(ctx, req.ServiceAccountToken, namespace)
+	secrets, err := k8s.RetrieveSecrets(ctx, clientFunc, req.ServiceAccountToken, namespace)
 	if err != nil {
 		return fmt.Errorf("unable to get secrets: %w", err)
 	}
 
 	logger.L().Printf("Got %d secret(s)", len(secrets.Items))
 
-	authFilePath, err := auth.CreateAuthFile(secrets, config.KubeletAuthFilePath, config.AuthDir, namespace, req.Image, mirrors)
+	authFilePath, err := auth.CreateAuthFile(secrets, kubeletAuthFilePath, authDir, namespace, req.Image, mirrors)
 	if err != nil {
 		return fmt.Errorf("unable to create auth file: %w", err)
 	}
