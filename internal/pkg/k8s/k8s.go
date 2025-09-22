@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
@@ -54,13 +53,12 @@ func ExtractNamespace(req *cpv1.CredentialProviderRequest) (string, error) {
 	return namespace, nil
 }
 
+// ClientFunc is the function for retrieving the Kubernetes client.
+type ClientFunc func(token string) (kubernetes.Interface, error)
+
 // RetrieveSecrets collects all secrets from the localhost node using the Kubernetes API.
-func RetrieveSecrets(ctx context.Context, token, namespace string) (*corev1.SecretList, error) {
-	client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            "localhost:6443",
-		BearerToken:     token,
-		TLSClientConfig: rest.TLSClientConfig{Insecure: true},
-	})
+func RetrieveSecrets(ctx context.Context, clientFunc ClientFunc, token, namespace string) (*corev1.SecretList, error) {
+	client, err := clientFunc(token)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to Kubernetes API: %w", err)
 	}
