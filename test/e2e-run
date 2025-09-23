@@ -72,3 +72,8 @@ Registries conf path "/etc/containers/registries.conf" does not exist, stopping
 EOL
 
 diff "$GOT" "$EXPECTED"
+
+# Assert CRI-O logs
+sudo journalctl -u crio | grep -q "Using auth file for namespace default"
+podman logs registry &>output
+grep -q "authorized request" output
