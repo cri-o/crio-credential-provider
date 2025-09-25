@@ -18,6 +18,7 @@ apt-get install -y \
 
 # Setup CRI-O
 cp registries.conf /etc/containers/registries.conf
+printf '[crio.runtime]\nlog_level = "debug"' >/etc/crio/crio.conf.d/10-log-level.conf
 systemctl enable --now crio
 
 # Use the kubeadm default service account token audience
@@ -36,6 +37,7 @@ localAPIEndpoint:
 nodeRegistration:
   name: 127.0.0.1
   criSocket: unix:///var/run/crio/crio.sock
+  imagePullSerial: false
   kubeletExtraArgs:
     - name: image-credential-provider-bin-dir
       value: $(dirname "$SCRIPT_DIR")/build
@@ -48,7 +50,16 @@ featureGates:
   KubeletServiceAccountTokenForCredentialProviders: true
 EOL
 swapoff -a
-kubeadm init --config="$KUBEADM_CONFIG"
+
+print_logs() {
+    journalctl -u kubelet
+    journalctl -u crio
+    cat /var/lib/kubelet/config.yaml
+    systemctl cat kubelet
+}
+
+trap 'print_logs' ERR
+kubeadm init --v=10 --config="$KUBEADM_CONFIG"
 
 # Setup kubectl
 USER=runner
