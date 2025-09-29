@@ -4,11 +4,27 @@ set -euox pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 cd "$SCRIPT_DIR"
 
+# Prepare registries.conf
+sudo cp registries.conf /etc/containers/registries.conf
+
 # Start the local container registry
 registry/start
 
 # Setup the requirements and run the test pod
 kubectl apply -f cluster/rbac.yml -f cluster/secret.yml
+
+GOT=$(mktemp)
+EXPECTED=$(mktemp)
+CRIO_LOGS=$(mktemp)
+trap 'rm "$GOT" "$EXPECTED" "$CRIO_LOGS"' EXIT
+
+AUTH_PATH=/etc/crio/auth
+AUTH_PATH_IN_USE=$AUTH_PATH/in-use
+
+clear_journald() {
+    sudo journalctl --vacuum-time=1ms
+    sudo journalctl --rotate
+}
 
 run_test_pod() {
     kubectl delete -f cluster/pod.yml || true
@@ -16,27 +32,25 @@ run_test_pod() {
     kubectl wait --for=condition=ready pod/test-pod
 }
 
-# Run the first test pod, mirror should be found
-run_test_pod
+save_logs() {
+    # Save and clean the logs from the last credential provider run
+    LAST_PID=$(sudo journalctl -q -o cat --no-pager -n 1 --output-fields _PID _COMM=credential-prov)
+    sudo journalctl _PID="$LAST_PID" | sed -E 's;.*.go:[0-9]+:\s(.*);\1;' >"$GOT"
+}
 
-# Run the second test pod, mirrors should be empty
-echo "" | sudo tee /etc/containers/registries.conf
-run_test_pod
+testcase_mirror_found() {
+    clear_journald
+    run_test_pod
+    save_logs
 
-# Run the third test pod, mirror file does not exist
-sudo rm /etc/containers/registries.conf
-run_test_pod
+    NAMESPACE=default
+    IMAGE_HASH=7e59ad64326bc321517fb6fc6586de5ee149178394d9edfa2a877176cdf6fad5
+    AUTH_FILE=$AUTH_PATH/$NAMESPACE-$IMAGE_HASH.json
+    # AUTH_FILE_IN_USE has a UUID suffix, which we skip for validation
+    AUTH_FILE_IN_USE=$AUTH_PATH_IN_USE/$NAMESPACE-$IMAGE_HASH
 
-# Do assertions
-# TODO: Expand them when https://github.com/cri-o/cri-o/pull/9463 got merged
-GOT=$(mktemp)
-EXPECTED=$(mktemp)
-trap 'rm "$GOT" "$EXPECTED"' EXIT
-
-sudo journalctl _COMM=credential-prov --since "5 minutes ago" | sed -E 's;.*.go:[0-9]+:\s(.*);\1;' >"$GOT"
-
-# First test result
-cat >"$EXPECTED" <<EOL
+    # First test result: mirror should be found and written
+    cat >"$EXPECTED" <<EOL
 Running credential provider
 Reading from stdin
 Got stdin, parsing JSON as CredentialProviderRequest
@@ -44,18 +58,40 @@ Parsed credential provider request for image "docker.io/library/nginx"
 Parsing namespace from request
 Matching mirrors for registry config: /etc/containers/registries.conf
 Got mirror(s) for "docker.io/library/nginx": "localhost:5000"
-Getting secrets from namespace: default
+Getting secrets from namespace: $NAMESPACE
 Got 1 secret(s)
 Parsing secret: my-secret
 Found docker config JSON auth in secret "my-secret" for "http://localhost:5000"
 Checking if mirror "localhost:5000" matches registry "localhost:5000"
 Using mirror auth "localhost:5000" for registry from secret "localhost:5000"
-Wrote auth file to /etc/crio/auth/default-7e59ad64326bc321517fb6fc6586de5ee149178394d9edfa2a877176cdf6fad5.json with 1 number of entries
-Auth file path: /etc/crio/auth/default-7e59ad64326bc321517fb6fc6586de5ee149178394d9edfa2a877176cdf6fad5.json
+Wrote auth file to $AUTH_FILE with 1 number of entries
+Auth file path: $AUTH_FILE
 EOL
 
-# Second test result
-cat >>"$EXPECTED" <<EOL
+    diff "$GOT" "$EXPECTED"
+
+    # Assert CRI-O logs and auth file
+    # shellcheck disable=SC2024
+    sudo journalctl -u crio >"$CRIO_LOGS"
+    grep -q "Using auth file for namespace $NAMESPACE: $AUTH_FILE" "$CRIO_LOGS"
+    grep -q "Removed temp auth file: $AUTH_FILE_IN_USE" "$CRIO_LOGS"
+    [[ $(find "$AUTH_PATH" -type f) == "" ]]
+    test -d $AUTH_PATH_IN_USE
+    [[ $(find "$AUTH_PATH_IN_USE" -type f) == "" ]]
+
+    # Assert registry authorization
+    podman logs registry &>output
+    grep -q "authorized request" output
+}
+
+testcase_no_mirror_found() {
+    clear_journald
+    echo "" | sudo tee /etc/containers/registries.conf
+    run_test_pod
+    save_logs
+
+    # Second test result: No mirror should be found, auth file should not exist any more since CRI-O removed it.
+    cat >"$EXPECTED" <<EOL
 Running credential provider
 Reading from stdin
 Got stdin, parsing JSON as CredentialProviderRequest
@@ -65,15 +101,38 @@ Matching mirrors for registry config: /etc/containers/registries.conf
 No mirrors found, will not write any auth file
 EOL
 
-# Third test result
-cat >>"$EXPECTED" <<EOL
+    diff "$GOT" "$EXPECTED"
+
+    # Assert CRI-O logs and auth file
+    # shellcheck disable=SC2024
+    sudo journalctl -u crio >"$CRIO_LOGS"
+    grep -q "Looking for namespaced auth JSON file in:" "$CRIO_LOGS"
+    grep -vq "Using auth file for namespace default" "$CRIO_LOGS"
+    [[ $(find "$AUTH_PATH" -type f) == "" ]]
+}
+
+testcase_no_registries_conf_found() {
+    clear_journald
+    sudo rm /etc/containers/registries.conf
+    run_test_pod
+    save_logs
+
+    # Third test result: registries.conf does not exist, do nothing
+    cat >"$EXPECTED" <<EOL
 Running credential provider
 Registries conf path "/etc/containers/registries.conf" does not exist, stopping
 EOL
 
-diff "$GOT" "$EXPECTED"
+    diff "$GOT" "$EXPECTED"
 
-# Assert CRI-O logs
-sudo journalctl -u crio | grep -q "Using auth file for namespace default"
-podman logs registry &>output
-grep -q "authorized request" output
+    # Assert CRI-O logs and auth file
+    # shellcheck disable=SC2024
+    sudo journalctl -u crio >"$CRIO_LOGS"
+    grep -q "Looking for namespaced auth JSON file in:" "$CRIO_LOGS"
+    grep -vq "Using auth file for namespace default" "$CRIO_LOGS"
+}
+
+# Run all test cases
+testcase_mirror_found
+testcase_no_mirror_found
+testcase_no_registries_conf_found

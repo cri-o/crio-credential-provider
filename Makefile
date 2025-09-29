@@ -49,6 +49,7 @@ $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
 .PHONY: clean
 clean: ## Clean the build directory
 	rm -rf $(BUILD_DIR)
+	cd test && vagrant destroy -f
 
 .PHONY: test
 test: $(BUILD_DIR) ## Run the unit tests
@@ -103,3 +104,8 @@ shellcheck: shellfiles $(SHELLCHECK) ## Run shellcheck on all shell files
 		-P test/registry \
 		-x \
 		$(SHELLFILES)
+
+.PHONY: e2e
+e2e: $(BUILD_DIR)/$(PROJECT) ## Run the e2e tests
+	cd test && vagrant up
+	test/vagrant-run test/e2e-run
