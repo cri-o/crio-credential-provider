@@ -4,20 +4,34 @@ set -euox pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 cd "$SCRIPT_DIR"
 
+# Setup system for kubeadm usage
+swapoff -a
+sysctl -w net.ipv4.ip_forward=1
+
 # Install Kubernetes and CRI-O
 KUBERNETES_VERSION=v1.34
+curl -fsSL https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/Release.key | gpg --batch --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/main/deb/Release.key | gpg --batch --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg
 echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/main/deb/ /" | tee /etc/apt/sources.list.d/cri-o.list
 apt-get update
 apt-get install -y \
     cri-o \
+    jq \
     kubelet \
     kubeadm \
-    kubectl
+    kubectl \
+    podman \
+    net-tools
 
 # Setup CRI-O
 cp registries.conf /etc/containers/registries.conf
+printf '[crio.runtime]\nlog_level = "debug"' >/etc/crio/crio.conf.d/10-log-level.conf
+
+# Setup CNI to disable IPv6
+CNI_CONFIG=/etc/cni/net.d/10-crio-bridge.conflist
+jq 'del(.plugins[0].ipam.routes[1], .plugins[0].ipam.ranges[1])' $CNI_CONFIG.disabled >$CNI_CONFIG
+
 systemctl enable --now crio
 
 # Use the kubeadm default service account token audience
@@ -26,6 +40,7 @@ sed -i "s;kubernetes.default.svc;kubernetes.default.svc.cluster.local;g" "$CREDE
 
 # Setup cluster
 KUBEADM_CONFIG=$(mktemp)
+trap 'rm "$KUBEADM_CONFIG"' EXIT
 cat >"$KUBEADM_CONFIG" <<EOL
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
@@ -36,6 +51,7 @@ localAPIEndpoint:
 nodeRegistration:
   name: 127.0.0.1
   criSocket: unix:///var/run/crio/crio.sock
+  imagePullSerial: false
   kubeletExtraArgs:
     - name: image-credential-provider-bin-dir
       value: $(dirname "$SCRIPT_DIR")/build
@@ -47,11 +63,10 @@ kind: KubeletConfiguration
 featureGates:
   KubeletServiceAccountTokenForCredentialProviders: true
 EOL
-swapoff -a
 kubeadm init --config="$KUBEADM_CONFIG"
 
 # Setup kubectl
-USER=runner
+USER=vagrant
 mkdir /home/$USER/.kube
 
 KUBECONFIG=/etc/kubernetes/admin.conf
