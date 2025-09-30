@@ -18,6 +18,8 @@ import (
 )
 
 func TestUpdateAuthContents(t *testing.T) {
+	t.Parallel()
+
 	secretUser := "su"
 	secretPass := "sp"
 	secretEncoded := base64.StdEncoding.EncodeToString([]byte(secretUser + ":" + secretPass))
@@ -105,6 +107,8 @@ func TestUpdateAuthContents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			secrets := buildSecretList(t, secretEncoded, tt.secretRegs)
 			globalContents := buildGlobalConfig(globalEncoded, tt.globalRegs)
 
@@ -118,6 +122,8 @@ func TestUpdateAuthContents(t *testing.T) {
 }
 
 func TestCreateAuthFile(t *testing.T) {
+	t.Parallel()
+
 	config.AuthDir = t.TempDir()
 
 	user := "u1"
@@ -211,6 +217,8 @@ func buildGlobalConfig(encoded string, regs []string) docker.ConfigJSON {
 }
 
 func TestReadGlobalAuthFile(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary auth.json
 	dir := t.TempDir()
 	authPath := filepath.Join(dir, "auth.json")

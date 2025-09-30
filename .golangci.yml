@@ -38,6 +38,7 @@ linters:
     - goconst
     - gocritic
     - gocyclo
+    - godoclint
     - godot
     - godox
     - goheader
@@ -53,6 +54,7 @@ linters:
     - ineffassign
     - interfacebloat
     - intrange
+    - iotamixing
     - ireturn
     - loggercheck
     - maintidx
@@ -70,6 +72,7 @@ linters:
     - nolintlint
     - nonamedreturns
     - nosprintfhostport
+    - paralleltest
     - perfsprint
     - prealloc
     - predeclared
@@ -91,6 +94,7 @@ linters:
     - tparallel
     - unconvert
     - unparam
+    - unqueryvet
     - unused
     - usestdlibvars
     - usetesting
@@ -109,7 +113,6 @@ linters:
     # - lll
     # - mnd
     # - noinlineerr
-    # - paralleltest
     # - testpackage
     # - varnamelen
   exclusions:
