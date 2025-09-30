@@ -62,10 +62,6 @@ func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath strin
 		return fmt.Errorf("unable to extract namespace: %w", err)
 	}
 
-	if err := json.Unmarshal(stdinBytes, &req); err != nil {
-		return fmt.Errorf("unable to extract namespace from request: %w", err)
-	}
-
 	logger.L().Printf("Matching mirrors for registry config: %s", registriesConfPath)
 
 	mirrors, err := mirrors.Match(req, registriesConfPath)
