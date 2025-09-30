@@ -37,3 +37,9 @@ dependencies:
     refPaths:
       - path: Makefile
         match: SHELLCHECK_VERSION
+
+  - name: e2e-ubuntu
+    version: ubuntu2204
+    refPaths:
+      - path: test/Vagrantfile
+        match: config.vm.box
