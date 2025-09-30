@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,31 +53,45 @@ func prepareToken(t *testing.T, claims jwt.MapClaims) string {
 func TestRun(t *testing.T) {
 	t.Parallel()
 
+	requestBuffer := func(includeNamespace bool) *bytes.Buffer {
+		buffer := &bytes.Buffer{}
+
+		claims := jwt.MapClaims{}
+		if includeNamespace {
+			claims = jwt.MapClaims{k8sClaimKey: map[string]any{"namespace": namespace}}
+		}
+
+		serviceAccountToken := prepareToken(t, claims)
+		req := &cpv1.CredentialProviderRequest{
+			Image:               image,
+			ServiceAccountToken: serviceAccountToken,
+		}
+		res, err := json.Marshal(req)
+		require.NoError(t, err)
+
+		_, err = buffer.Write(res)
+		require.NoError(t, err)
+
+		return buffer
+	}
+
+	tempDirWithRegistriesConf := func() (string, *os.File) {
+		tempDir := t.TempDir()
+		registriesConf, err := os.CreateTemp(tempDir, "")
+		require.NoError(t, err)
+
+		return tempDir, registriesConf
+	}
+
 	for name, tc := range map[string]struct {
-		prepare func() (buffer *bytes.Buffer, registriesConfPath, authDir, kubeletAuthFilePath string, client k8s.ClientFunc)
+		prepare func() (buffer *bytes.Buffer, registriesConfPath, authDir string, client k8s.ClientFunc)
 		assert  func(err error, authDir string)
 	}{
 		"success": {
-			prepare: func() (*bytes.Buffer, string, string, string, k8s.ClientFunc) {
-				tempDir := t.TempDir()
-				registriesConf, err := os.CreateTemp(tempDir, "")
-				require.NoError(t, err)
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, registriesConf := tempDirWithRegistriesConf()
 
-				_, err = fmt.Fprintf(registriesConf, "[[registry]]\nlocation = %q\n[[registry.mirror]]\nlocation = %q", registry, mirror)
-				require.NoError(t, err)
-
-				buffer := &bytes.Buffer{}
-				serviceAccountToken := prepareToken(t, jwt.MapClaims{
-					k8sClaimKey: map[string]any{"namespace": namespace},
-				})
-				req := &cpv1.CredentialProviderRequest{
-					Image:               image,
-					ServiceAccountToken: serviceAccountToken,
-				}
-				res, err := json.Marshal(req)
-				require.NoError(t, err)
-
-				_, err = buffer.Write(res)
+				_, err := fmt.Fprintf(registriesConf, "[[registry]]\nlocation = %q\n[[registry.mirror]]\nlocation = %q", registry, mirror)
 				require.NoError(t, err)
 
 				clientFunc := func(string) (kubernetes.Interface, error) {
@@ -97,10 +112,9 @@ func TestRun(t *testing.T) {
 					}}), nil
 				}
 
-				return buffer,
+				return requestBuffer(true),
 					registriesConf.Name(),
 					tempDir,
-					filepath.Join(tempDir, "kubelet-auth.json"),
 					clientFunc
 			},
 			assert: func(err error, authDir string) {
@@ -120,11 +134,105 @@ func TestRun(t *testing.T) {
 				require.Equal(t, usernamePasswordBase64, authConfig.Auths[mirror].Auth)
 			},
 		},
+		"success no mirrors": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, registriesConf := tempDirWithRegistriesConf()
+
+				return requestBuffer(true),
+					registriesConf.Name(),
+					tempDir,
+					nil
+			},
+			assert: func(err error, authDir string) {
+				require.NoError(t, err)
+
+				path := filepath.Join(authDir, fmt.Sprintf("%s-%x.json", namespace, imageHash))
+				require.NoFileExists(t, path)
+			},
+		},
+		"success missing registries.conf": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, _ := tempDirWithRegistriesConf()
+
+				return &bytes.Buffer{},
+					"",
+					tempDir,
+					nil
+			},
+			assert: func(err error, _ string) {
+				require.NoError(t, err)
+			},
+		},
+		"failure on secrets retrieval": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, registriesConf := tempDirWithRegistriesConf()
+
+				_, err := fmt.Fprintf(registriesConf, "[[registry]]\nlocation = %q\n[[registry.mirror]]\nlocation = %q", registry, mirror)
+				require.NoError(t, err)
+
+				clientFunc := func(string) (kubernetes.Interface, error) {
+					return nil, errors.New("error")
+				}
+
+				return requestBuffer(true),
+					registriesConf.Name(),
+					tempDir,
+					clientFunc
+			},
+			assert: func(err error, _ string) {
+				require.Error(t, err)
+			},
+		},
+		"failure on match mirrors": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, registriesConf := tempDirWithRegistriesConf()
+
+				_, err := fmt.Fprint(registriesConf, "wrong content")
+				require.NoError(t, err)
+
+				return requestBuffer(true),
+					registriesConf.Name(),
+					tempDir,
+					nil
+			},
+			assert: func(err error, _ string) {
+				require.Error(t, err)
+			},
+		},
+		"failure on extract namespace": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir := t.TempDir()
+				registriesConf, err := os.CreateTemp(tempDir, "")
+				require.NoError(t, err)
+
+				return requestBuffer(false),
+					registriesConf.Name(),
+					tempDir,
+					nil
+			},
+			assert: func(err error, _ string) {
+				require.Error(t, err)
+			},
+		},
+		"failure on unmarshal request": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, registriesConf := tempDirWithRegistriesConf()
+
+				return &bytes.Buffer{},
+					registriesConf.Name(),
+					tempDir,
+					nil
+			},
+			assert: func(err error, _ string) {
+				require.Error(t, err)
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			buffer, registriesConfPath, authDir, kubeletAuthFilePath, clientFunc := tc.prepare()
+			buffer, registriesConfPath, authDir, clientFunc := tc.prepare()
+			kubeletAuthFilePath := filepath.Join(authDir, "kubelet-auth.json")
 
 			err := Run(buffer, registriesConfPath, authDir, kubeletAuthFilePath, clientFunc)
 
