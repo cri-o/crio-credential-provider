@@ -11,6 +11,8 @@ import (
 )
 
 func TestMatchMirrors(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary registries.conf
 	dir := t.TempDir()
 	confPath := filepath.Join(dir, "registries.conf")
