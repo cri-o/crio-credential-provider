@@ -4,9 +4,6 @@ set -euox pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 cd "$SCRIPT_DIR"
 
-# Prepare registries.conf
-sudo cp registries.conf /etc/containers/registries.conf
-
 # Start the local container registry
 registry/start
 
@@ -21,9 +18,20 @@ trap 'rm "$GOT" "$EXPECTED" "$CRIO_LOGS"' EXIT
 AUTH_PATH=/etc/crio/auth
 AUTH_PATH_IN_USE=$AUTH_PATH/in-use
 
+REGISTRIES_CONF_PATH=/etc/containers/registries.conf
+
 clear_journald() {
-    sudo journalctl --vacuum-time=1ms
-    sudo journalctl --rotate
+    sudo journalctl --vacuum-time=1ms --rotate
+}
+
+prepare_registries_conf() {
+    if [[ $1 == rm ]]; then
+        sudo rm "$REGISTRIES_CONF_PATH"
+    else
+        echo "$1" | sudo tee "$REGISTRIES_CONF_PATH"
+    fi
+    sudo systemctl restart crio
+    clear_journald
 }
 
 run_test_pod() {
@@ -39,7 +47,7 @@ save_logs() {
 }
 
 testcase_mirror_found() {
-    clear_journald
+    prepare_registries_conf "$(cat registries.conf)"
     run_test_pod
     save_logs
 
@@ -56,7 +64,7 @@ Reading from stdin
 Got stdin, parsing JSON as CredentialProviderRequest
 Parsed credential provider request for image "docker.io/library/nginx"
 Parsing namespace from request
-Matching mirrors for registry config: /etc/containers/registries.conf
+Matching mirrors for registry config: $REGISTRIES_CONF_PATH
 Got mirror(s) for "docker.io/library/nginx": "localhost:5000"
 Getting secrets from namespace: $NAMESPACE
 Got 1 secret(s)
@@ -85,8 +93,7 @@ EOL
 }
 
 testcase_no_mirror_found() {
-    clear_journald
-    echo "" | sudo tee /etc/containers/registries.conf
+    prepare_registries_conf ""
     run_test_pod
     save_logs
 
@@ -97,7 +104,7 @@ Reading from stdin
 Got stdin, parsing JSON as CredentialProviderRequest
 Parsed credential provider request for image "docker.io/library/nginx"
 Parsing namespace from request
-Matching mirrors for registry config: /etc/containers/registries.conf
+Matching mirrors for registry config: $REGISTRIES_CONF_PATH
 No mirrors found, will not write any auth file
 EOL
 
@@ -112,15 +119,14 @@ EOL
 }
 
 testcase_no_registries_conf_found() {
-    clear_journald
-    sudo rm /etc/containers/registries.conf
+    prepare_registries_conf rm
     run_test_pod
     save_logs
 
     # Third test result: registries.conf does not exist, do nothing
     cat >"$EXPECTED" <<EOL
 Running credential provider
-Registries conf path "/etc/containers/registries.conf" does not exist, stopping
+Registries conf path "$REGISTRIES_CONF_PATH" does not exist, stopping
 EOL
 
     diff "$GOT" "$EXPECTED"

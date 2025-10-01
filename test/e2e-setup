@@ -25,7 +25,6 @@ apt-get install -y \
     net-tools
 
 # Setup CRI-O
-cp registries.conf /etc/containers/registries.conf
 printf '[crio.runtime]\nlog_level = "debug"' >/etc/crio/crio.conf.d/10-log-level.conf
 
 # Setup CNI to disable IPv6
