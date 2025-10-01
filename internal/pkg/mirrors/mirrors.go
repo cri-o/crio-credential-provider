@@ -4,7 +4,6 @@ package mirrors
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"go.podman.io/image/v5/pkg/sysregistriesv2"
 	"go.podman.io/image/v5/types"
@@ -25,8 +24,6 @@ func Match(req *cpv1.CredentialProviderRequest, registriesConfPath string) ([]st
 	}
 
 	if registry == nil {
-		log.Printf("No registry found for image %q", req.Image)
-
 		return nil, nil
 	}
 

@@ -4,7 +4,7 @@ package docker
 // ConfigJSON represents ~/.docker/config.json file info.
 type ConfigJSON struct {
 	// Auths maps a registry prefix to an AuthConfig instance.
-	Auths map[string]AuthConfig `json:"auths"`
+	Auths map[string]AuthConfig `json:"auths,omitempty"`
 }
 
 // AuthConfig is a single registry's auth configuration.
@@ -15,6 +15,6 @@ type AuthConfig struct {
 
 // ConfigEntry wraps a docker config as a entry.
 type ConfigEntry struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 }
