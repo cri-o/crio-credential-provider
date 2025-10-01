@@ -34,7 +34,7 @@ func CreateAuthFile(secrets *corev1.SecretList, globalAuthFilePath, authDir, nam
 
 	authfileContents := updateAuthContents(secrets, globalAuthContents, image, mirrors)
 
-	// Write the namespace auth file to the auth directory /etc/crio/<namespace>-auth.json
+	// Write the namespace auth file to the auth directory /etc/crio/<namespace>-<image_name_sha256>.json
 	path, err := writeAuthFile(authDir, image, namespace, authfileContents)
 	if err != nil {
 		return "", fmt.Errorf("unable to write namespace auth file: %w", err)

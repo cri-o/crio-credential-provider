@@ -37,7 +37,7 @@ func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath strin
 
 	stdinBytes, err := io.ReadAll(stdin)
 	if err != nil {
-		return fmt.Errorf("unable to get logger: %w", err)
+		return fmt.Errorf("unable to read credential provider request from stdin: %w", err)
 	}
 
 	logger.L().Print("Got stdin, parsing JSON as CredentialProviderRequest")
