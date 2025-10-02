@@ -44,7 +44,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
-	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-s -w -X github.com/cri-o/credential-provider/internal/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/credential-provider
+	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-s -w -X github.com/cri-o/credential-provider/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/credential-provider
 
 .PHONY: clean
 clean: ## Clean the build directory

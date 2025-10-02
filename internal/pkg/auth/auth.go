@@ -2,19 +2,18 @@
 package auth
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/cri-o/credential-provider/internal/pkg/docker"
 	"github.com/cri-o/credential-provider/internal/pkg/logger"
+	"github.com/cri-o/credential-provider/pkg/auth"
 )
 
 // CreateAuthFile can be used to create a auth file to /etc/crio/auth which follows the convention for CRI-O consumption.
@@ -186,8 +185,10 @@ func writeAuthFile(dir, image, namespace string, fileContents docker.ConfigJSON)
 		return "", fmt.Errorf("ensure auth dir %q: %w", dir, err)
 	}
 
-	hash := sha256.Sum256([]byte(image))
-	path := filepath.Join(dir, fmt.Sprintf("%s-%x.json", namespace, hash))
+	path, err := auth.FilePath(dir, namespace, image)
+	if err != nil {
+		return "", fmt.Errorf("get auth path: %w", err)
+	}
 
 	if err := os.WriteFile(path, bytes, 0o600); err != nil {
 		return "", fmt.Errorf("write auth file: %w", err)
