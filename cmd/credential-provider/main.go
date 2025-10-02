@@ -8,8 +8,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/cri-o/credential-provider/internal/pkg/app"
-	"github.com/cri-o/credential-provider/internal/pkg/config"
 	"github.com/cri-o/credential-provider/internal/pkg/logger"
+	"github.com/cri-o/credential-provider/pkg/config"
 )
 
 func main() {

@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/cri-o/credential-provider/internal/pkg/docker"
 	"github.com/cri-o/credential-provider/internal/pkg/k8s"
+	"github.com/cri-o/credential-provider/pkg/auth"
 )
 
 const (
@@ -33,8 +33,6 @@ const (
 	mirror                 = "localhost:5000"
 	usernamePasswordBase64 = "bXl1c2VyOm15cGFzc3dvcmQ="
 )
-
-var imageHash = sha256.Sum256([]byte(image))
 
 func prepareToken(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
@@ -120,7 +118,8 @@ func TestRun(t *testing.T) {
 			assert: func(err error, authDir string) {
 				require.NoError(t, err)
 
-				path := filepath.Join(authDir, fmt.Sprintf("%s-%x.json", namespace, imageHash))
+				path, err := auth.FilePath(authDir, namespace, image)
+				require.NoError(t, err)
 				require.FileExists(t, path)
 
 				authFileContents, err := os.ReadFile(path)
@@ -146,7 +145,8 @@ func TestRun(t *testing.T) {
 			assert: func(err error, authDir string) {
 				require.NoError(t, err)
 
-				path := filepath.Join(authDir, fmt.Sprintf("%s-%x.json", namespace, imageHash))
+				path, err := auth.FilePath(authDir, namespace, image)
+				require.NoError(t, err)
 				require.NoFileExists(t, path)
 			},
 		},

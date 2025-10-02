@@ -1,10 +1,8 @@
 package auth
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/cri-o/credential-provider/internal/pkg/config"
 	"github.com/cri-o/credential-provider/internal/pkg/docker"
+	cpAuth "github.com/cri-o/credential-provider/pkg/auth"
 )
 
 func TestUpdateAuthContents(t *testing.T) {
@@ -124,8 +122,6 @@ func TestUpdateAuthContents(t *testing.T) {
 func TestCreateAuthFile(t *testing.T) {
 	t.Parallel()
 
-	config.AuthDir = t.TempDir()
-
 	user := "u1"
 	pass := "p1"
 	auth := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
@@ -152,17 +148,19 @@ func TestCreateAuthFile(t *testing.T) {
 
 	namespace := "ns-unit"
 	image := "registry.local/app/img:1"
-	imageHash := sha256.Sum256([]byte(image))
 	mirrors := []string{"mirror.quay.io", "cache.local:5000", "quay.io"}
 
-	path, err := CreateAuthFile(secrets, "", config.AuthDir, namespace, image, mirrors)
+	authDir := t.TempDir()
+
+	path, err := CreateAuthFile(secrets, "", authDir, namespace, image, mirrors)
 	if err != nil {
 		t.Fatalf("CreateAuthFile error: %v", err)
 	}
 
 	t.Cleanup(func() { _ = os.Remove(path) })
 
-	wantPath := filepath.Join(config.AuthDir, fmt.Sprintf("%s-%x.json", namespace, imageHash))
+	wantPath, err := cpAuth.FilePath(authDir, namespace, image)
+	require.NoError(t, err)
 	assert.Equal(t, wantPath, path)
 
 	data, err := os.ReadFile(path)
