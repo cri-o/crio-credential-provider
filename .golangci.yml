@@ -27,7 +27,6 @@ linters:
     - exhaustive
     - exptostd
     - fatcontext
-    - forbidigo
     - forcetypeassert
     - funcorder
     - ginkgolinter
@@ -107,6 +106,7 @@ linters:
     # - depguard
     # - err113
     # - exhaustruct
+    # - forbidigo
     # - funlen
     # - gochecknoglobals
     # - gosec

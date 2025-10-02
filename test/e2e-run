@@ -138,7 +138,15 @@ EOL
     grep -vq "Using auth file for namespace default" "$CRIO_LOGS"
 }
 
+testcase_version() {
+    BINARY_PATH=$(dirname "$SCRIPT_DIR")/build/crio-credential-provider
+
+    "$BINARY_PATH" --version | grep -q Version:
+    "$BINARY_PATH" --version-json | jq -e >/dev/null
+}
+
 # Run all test cases
 testcase_mirror_found
 testcase_no_mirror_found
 testcase_no_registries_conf_found
+testcase_version
