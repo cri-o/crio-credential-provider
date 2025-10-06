@@ -11,9 +11,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/cri-o/credential-provider/internal/pkg/docker"
-	"github.com/cri-o/credential-provider/internal/pkg/logger"
-	"github.com/cri-o/credential-provider/pkg/auth"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/docker"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/logger"
+	"github.com/cri-o/crio-credential-provider/pkg/auth"
 )
 
 // CreateAuthFile can be used to create a auth file to /etc/crio/auth which follows the convention for CRI-O consumption.

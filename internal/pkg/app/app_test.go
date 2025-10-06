@@ -20,9 +20,9 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 
-	"github.com/cri-o/credential-provider/internal/pkg/docker"
-	"github.com/cri-o/credential-provider/internal/pkg/k8s"
-	"github.com/cri-o/credential-provider/pkg/auth"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/docker"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/k8s"
+	"github.com/cri-o/crio-credential-provider/pkg/auth"
 )
 
 const (

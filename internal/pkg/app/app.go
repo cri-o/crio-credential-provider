@@ -13,10 +13,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 
-	"github.com/cri-o/credential-provider/internal/pkg/auth"
-	"github.com/cri-o/credential-provider/internal/pkg/k8s"
-	"github.com/cri-o/credential-provider/internal/pkg/logger"
-	"github.com/cri-o/credential-provider/internal/pkg/mirrors"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/auth"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/k8s"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/logger"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/mirrors"
 )
 
 // Run is the main entry point for the whole credential provider application.

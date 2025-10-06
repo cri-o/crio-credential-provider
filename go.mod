@@ -1,4 +1,4 @@
-module github.com/cri-o/credential-provider
+module github.com/cri-o/crio-credential-provider
 
 go 1.25
 
