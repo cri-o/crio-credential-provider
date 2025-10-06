@@ -42,7 +42,7 @@ run_test_pod() {
 
 save_logs() {
     # Save and clean the logs from the last credential provider run
-    LAST_PID=$(sudo journalctl -q -o cat --no-pager -n 1 --output-fields _PID _COMM=credential-prov)
+    LAST_PID=$(sudo journalctl -q -o cat --no-pager -n 1 --output-fields _PID _COMM=crio-credential)
     sudo journalctl _PID="$LAST_PID" | sed -E 's;.*.go:[0-9]+:\s(.*);\1;' >"$GOT"
 }
 

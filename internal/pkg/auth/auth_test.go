@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/cri-o/credential-provider/internal/pkg/docker"
-	cpAuth "github.com/cri-o/credential-provider/pkg/auth"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/docker"
+	cpAuth "github.com/cri-o/crio-credential-provider/pkg/auth"
 )
 
 func TestUpdateAuthContents(t *testing.T) {
