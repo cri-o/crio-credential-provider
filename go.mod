@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.11.1
 	go.podman.io/image/v5 v5.37.0
 	k8s.io/api v0.34.1

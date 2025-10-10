@@ -67,6 +67,7 @@ Parsing namespace from request
 Matching mirrors for registry config: $REGISTRIES_CONF_PATH
 Got mirror(s) for "docker.io/library/nginx": "localhost:5000"
 Getting secrets from namespace: $NAMESPACE
+Unable to find env file "/etc/kubernetes/apiserver-url.env", using default API server host: localhost:6443
 Got 1 secret(s)
 Parsing secret: my-secret
 Found docker config JSON auth in secret "my-secret" for "http://localhost:5000"

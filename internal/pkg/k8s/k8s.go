@@ -5,12 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
+
+	"github.com/cri-o/crio-credential-provider/internal/pkg/logger"
 )
 
 const k8sClaimKey = "kubernetes.io"
@@ -71,4 +75,25 @@ func RetrieveSecrets(ctx context.Context, clientFunc ClientFunc, token, namespac
 	}
 
 	return secrets, nil
+}
+
+// APIServerHost can be used to retrieve the API server host:port combination
+// from either /etc/kubernetes/apiserver-url.env or falling back to the default
+// localhost:6443 one.
+func APIServerHost() string {
+	const (
+		envFilePath = "/etc/kubernetes/apiserver-url.env"
+		defaultHost = "localhost:6443"
+	)
+
+	if err := godotenv.Load(envFilePath); os.IsNotExist(err) {
+		logger.L().Printf("Unable to find env file %q, using default API server host: %s", envFilePath, defaultHost)
+
+		return "localhost:6443"
+	}
+
+	host := fmt.Sprintf("%s:%s", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"))
+	logger.L().Printf("Using API server host: %s", host)
+
+	return host
 }
