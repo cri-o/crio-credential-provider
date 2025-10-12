@@ -21,6 +21,13 @@ SHELLCHECK_VERSION := v0.11.0
 ZEITGEIST := $(BUILD_DIR)/zeitgeist
 ZEITGEIST_VERSION := v0.5.4
 
+DATE_FMT = +%Y-%m-%dT%H:%M:%SZ
+ifdef SOURCE_DATE_EPOCH
+    BUILD_DATE ?= $(shell date -u -d "@$(SOURCE_DATE_EPOCH)" "$(DATE_FMT)" 2>/dev/null || date -u -r "$(SOURCE_DATE_EPOCH)" "$(DATE_FMT)" 2>/dev/null || date -u "$(DATE_FMT)")
+else
+    BUILD_DATE ?= $(shell date -u "$(DATE_FMT)")
+endif
+
 all: $(BUILD_DIR)/$(PROJECT) ## Build the binary
 
 .PHONY: help
@@ -44,7 +51,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
-	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-s -w -X github.com/cri-o/$(PROJECT)/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/$(PROJECT)
+	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-s -w -X github.com/cri-o/$(PROJECT)/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF) -X github.com/cri-o/$(PROJECT)/internal/pkg/version.buildDate=$(BUILD_DATE)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/$(PROJECT)
 
 .PHONY: clean
 clean: ## Clean the build directory
