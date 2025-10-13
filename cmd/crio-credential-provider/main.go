@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/cri-o/crio-credential-provider/internal/pkg/app"
+	"github.com/cri-o/crio-credential-provider/internal/pkg/k8s"
 	"github.com/cri-o/crio-credential-provider/internal/pkg/logger"
 	"github.com/cri-o/crio-credential-provider/internal/pkg/version"
 	"github.com/cri-o/crio-credential-provider/pkg/config"
@@ -39,7 +40,7 @@ func main() {
 		config.KubeletAuthFilePath,
 		func(token string) (kubernetes.Interface, error) {
 			return kubernetes.NewForConfig(&rest.Config{
-				Host:            "localhost:6443",
+				Host:            k8s.APIServerHost(),
 				BearerToken:     token,
 				TLSClientConfig: rest.TLSClientConfig{Insecure: true},
 			})
