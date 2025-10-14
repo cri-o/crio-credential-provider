@@ -1,0 +1,25 @@
+variant: openshift
+version: 4.20.0
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: 99-worker-crio-credential-provider-config
+storage:
+  files:
+    - path: /etc/kubernetes/credential-providers/ecr-credential-provider.yaml
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          ---
+          kind: CredentialProviderConfig
+          apiVersion: kubelet.config.k8s.io/v1
+          providers:
+            - name: ecr-credential-provider
+              matchImages:
+                - docker.io
+              defaultCacheDuration: "1s"
+              apiVersion: credentialprovider.kubelet.k8s.io/v1
+              tokenAttributes:
+                serviceAccountTokenAudience: https://kubernetes.default.svc
+                requireServiceAccount: false

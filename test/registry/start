@@ -13,6 +13,7 @@ REGISTRY=localhost:$PORT
 
 podman \
     run -d \
+    --privileged \
     -p $PORT:$PORT \
     --rm \
     --pull=always \
