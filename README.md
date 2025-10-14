@@ -1,4 +1,16 @@
-# Running the main use case as test scenario
+# CRI-O Credential Provider
+
+This project aims to ship a credential provider built for CRI-O to authenticate
+image pulls against registry mirrors by using namespaced Kubernetes Secrets.
+
+![flow-graph](.github/flow.jpg "Flow graph")
+
+## Running the main use case in OpenShift
+
+How to test the feature in OpenShift is outlined in
+[test/openshift/README.md](test/openshift/README.md).
+
+## Running the main use case in plain Kubernetes
 
 Build the project and inject the test `registries.conf` into the binary:
 
