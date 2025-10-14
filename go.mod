@@ -1,11 +1,12 @@
 module github.com/cri-o/crio-credential-provider
 
-go 1.25
+go 1.24.0
 
 require (
 	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/joho/godotenv v1.5.1
+	github.com/json-iterator/go v1.1.12
 	github.com/stretchr/testify v1.11.1
 	go.podman.io/image/v5 v5.37.0
 	k8s.io/api v0.34.1
@@ -28,7 +29,6 @@ require (
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/moby/sys/capability v0.4.0 // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
