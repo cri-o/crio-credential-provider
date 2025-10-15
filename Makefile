@@ -28,6 +28,8 @@ else
     BUILD_DATE ?= $(shell date -u "$(DATE_FMT)")
 endif
 
+LDFLAGS := -s -w -X github.com/cri-o/$(PROJECT)/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF) -X github.com/cri-o/$(PROJECT)/internal/pkg/version.buildDate=$(BUILD_DATE)
+
 all: $(BUILD_DIR)/$(PROJECT) ## Build the binary
 
 .PHONY: help
@@ -51,7 +53,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
-	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -ldflags "-s -w -X github.com/cri-o/$(PROJECT)/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF) -X github.com/cri-o/$(PROJECT)/internal/pkg/version.buildDate=$(BUILD_DATE)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/$(PROJECT)
+	CGO_ENABLED=$(CGO_ENABLED) GOARCH=$(GOARCH) GOOS=$(GOOS) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(PROJECT) ./cmd/$(PROJECT)
 
 .PHONY: clean
 clean: ## Clean the build directory
@@ -116,3 +118,11 @@ shellcheck: shellfiles $(SHELLCHECK) ## Run shellcheck on all shell files
 e2e: $(BUILD_DIR)/$(PROJECT) ## Run the e2e tests
 	cd test && vagrant up
 	test/vagrant-run test/e2e-run
+
+.PHONY: release
+release: ## Build a release using goreleaser
+	LDFLAGS="$(LDFLAGS)" release release --clean
+
+.PHONY: snapshot
+snapshot: ## Build a snapshot using goreleaser
+	LDFLAGS="$(LDFLAGS)" goreleaser release --clean --snapshot --skip=sign,publish

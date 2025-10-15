@@ -1,0 +1,80 @@
+version: 2
+project_name: crio-credential-provider
+env:
+  - CGO_ENABLED=0
+  - COSIGN_YES=true
+before:
+  hooks:
+    - go mod tidy
+    - bash -c 'if [ -n "$(git --no-pager diff --exit-code go.mod go.sum)" ]; then exit 1; fi'
+gomod:
+  proxy: true
+builds:
+  - id: crio-credential-provider
+    dir: .
+    no_unique_dist_dir: true
+    binary: crio-credential-provider-{{ .Arch }}-{{ .Os }}
+    main: cmd/crio-credential-provider/main.go
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - "{{ .Env.LDFLAGS }}"
+
+archives:
+  - formats: binary
+    name_template: "{{ .Binary }}"
+    allow_different_binary_count: true
+
+signs:
+  # Keyless
+  - id: crio-credential-provider-keyless
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    cmd: cosign
+    args:
+      [
+        "sign-blob",
+        "--output-signature",
+        "${artifact}.sig",
+        "--output-certificate",
+        "${artifact}.pem",
+        "${artifact}",
+      ]
+    artifacts: all
+
+sboms:
+  - id: crio-credential-provider
+    cmd: bom
+    args:
+      - generate
+      - "--output"
+      - "crio-credential-provider-bom.json.spdx"
+      - "-d"
+      - "../"
+      - "-c"
+      - "../.bom-config.yaml"
+      - "--format"
+      - "json"
+    artifacts: any
+    documents:
+      - "crio-credential-provider-bom.json.spdx"
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
+release:
+  github:
+    owner: cri-o
+    name: crio-credential-provider
+  prerelease: auto
+
+changelog:
+  disable: true
