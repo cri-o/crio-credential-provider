@@ -1,0 +1,93 @@
+<svg width="240" height="270" viewBox="80 30 240 270" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="hexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3c6eb4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#294172;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="keyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F5A623;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D68910;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Main CRI-O Hexagon (Official Logo Style) -->
+  <g filter="url(#shadow)">
+    <polygon points="200,60 290,110 290,210 200,260 110,210 110,110"
+             fill="#FFFFFF"
+             stroke="url(#hexGradient)"
+             stroke-width="8"/>
+
+    <!-- Inner hexagon detail lines -->
+    <line x1="200" y1="60" x2="200" y2="135" stroke="#3c6eb4" stroke-width="3" opacity="0.3"/>
+    <line x1="290" y1="110" x2="245" y2="135" stroke="#3c6eb4" stroke-width="3" opacity="0.3"/>
+    <line x1="110" y1="110" x2="155" y2="135" stroke="#3c6eb4" stroke-width="3" opacity="0.3"/>
+  </g>
+
+  <!-- CRI-O Text (Official Brand Typography) -->
+  <text x="200" y="150"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="48"
+        font-weight="bold"
+        fill="#294172"
+        text-anchor="middle">CRI-O</text>
+
+  <!-- Credential Provider Subtitle -->
+  <text x="200" y="175"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="14"
+        font-weight="normal"
+        fill="#3c6eb4"
+        text-anchor="middle"
+        opacity="0.8">CREDENTIAL</text>
+
+  <text x="200" y="193"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="14"
+        font-weight="normal"
+        fill="#3c6eb4"
+        text-anchor="middle"
+        opacity="0.8">PROVIDER</text>
+
+  <!-- Key Symbol (representing credentials) -->
+  <g transform="translate(200, 230)" filter="url(#shadow)">
+    <!-- Key head (circular) -->
+    <circle cx="0" cy="0" r="18" fill="url(#keyGradient)" stroke="#D68910" stroke-width="2"/>
+    <circle cx="0" cy="0" r="8" fill="#FFFFFF"/>
+
+    <!-- Key shaft -->
+    <rect x="-4" y="12" width="8" height="35" rx="2" fill="url(#keyGradient)"/>
+
+    <!-- Key teeth -->
+    <rect x="4" y="35" width="8" height="5" fill="url(#keyGradient)"/>
+    <rect x="4" y="42" width="8" height="5" fill="url(#keyGradient)"/>
+  </g>
+
+  <!-- Container/Registry Icons (small hexagons around the key) -->
+  <g opacity="0.6">
+    <!-- Left hexagon -->
+    <polygon points="140,240 155,232 170,240 170,256 155,264 140,256"
+             fill="none"
+             stroke="#3c6eb4"
+             stroke-width="2"/>
+
+    <!-- Right hexagon -->
+    <polygon points="230,240 245,232 260,240 260,256 245,264 230,256"
+             fill="none"
+             stroke="#3c6eb4"
+             stroke-width="2"/>
+
+    <!-- Connection lines -->
+    <line x1="170" y1="248" x2="182" y2="248" stroke="#F5A623" stroke-width="2" stroke-dasharray="3,3"/>
+    <line x1="218" y1="248" x2="230" y2="248" stroke="#F5A623" stroke-width="2" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Decorative dots (representing secrets/credentials flow) -->
+  <g opacity="0.5">
+    <circle cx="200" cy="205" r="3" fill="#F5A623"/>
+    <circle cx="200" cy="215" r="3" fill="#F5A623"/>
+  </g>
+
+</svg>

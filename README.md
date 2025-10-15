@@ -1,84 +1,157 @@
 # CRI-O Credential Provider
 
+<p align="center">
+  <img src="./.github/logo.svg" alt="Logo" width="240">
+</p>
+
 This project aims to ship a credential provider built for CRI-O to authenticate
 image pulls against registry mirrors by using namespaced Kubernetes Secrets.
 
-![flow-graph](.github/flow.jpg "Flow graph")
+## Features
 
-## Running the main use case in OpenShift
+- Seamless integration with CRI-O as a [kubelet image credential provider
+  plugin](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/)
+- Authentication image pulls from registry mirrors using [Kubernetes
+  Secrets](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/#registry-secret-existing-credentials)
+  scoped to namespaces
+- Support for registry mirrors and pull-through caches
+- Compatible with standard container registry authentication
+- Works with both plain Kubernetes and OpenShift
+
+## Building
+
+To build the credential provider binary from source:
+
+```bash
+make
+```
+
+This will create the binary at `build/crio-credential-provider`.
+
+You can also specify the target OS and architecture:
+
+```bash
+GOOS=linux GOARCH=amd64 make
+```
+
+To clean the build artifacts:
+
+```bash
+make clean
+```
+
+## Usage
+
+### Running the main use case in plain Kubernetes
+
+How to test the feature in Kubernetes is outlined in
+[test/README.md](test/README.md).
+
+### Running the main use case in OpenShift
 
 How to test the feature in OpenShift is outlined in
 [test/openshift/README.md](test/openshift/README.md).
 
-## Running the main use case in plain Kubernetes
+## Development
 
-Build the project and inject the test `registries.conf` into the binary:
+### Running Tests
 
-```console
-export ROOT=$(git rev-parse --show-toplevel)
-cd $ROOT
+Run the unit tests:
+
+```bash
+make test
 ```
 
-```console
-make REGISTRIES_CONF=$ROOT/test/registries.conf
+This will generate coverage reports in `build/coverprofile` and `build/coverage.html`.
+
+### Linting
+
+Run the Go linter:
+
+```bash
+make lint
 ```
 
-Run Kubernetes (possibly via [`hack/local-up-cluster.sh`](https://github.com/kubernetes/kubernetes/blob/master/hack/local-up-cluster.sh)):
+Run shell script formatting:
 
-```console
-export FEATURE_GATES=KubeletServiceAccountTokenForCredentialProviders=true
-export KUBELET_FLAGS="--image-credential-provider-bin-dir=$ROOT/build --image-credential-provider-config=$ROOT/test/cluster/credential-provider-config.yml"
+```bash
+make shfmt
 ```
 
-```console
-/path/to/hack/local-up-cluster.sh
+Run shell script linting:
+
+```bash
+make shellcheck
 ```
 
-Start CRI-O [with the auth file feature](https://github.com/cri-o/cri-o/pull/9463)
-and using the custom `registries.conf`:
+### End-to-end Tests
 
-```console
-sudo ./bin/crio --registries-conf $ROOT/test/registries.conf
+Run end-to-end tests using Vagrant:
+
+```bash
+make e2e
 ```
 
-Run the `localhost:5000` registry which uses basic auth:
+This will set up a test environment and run the full integration test suite.
 
-```console
-./test/registry/start
+### Verifying Dependencies
+
+Check that all dependencies are up to date:
+
+```bash
+make dependencies
 ```
 
-Apply the cluster RBAC and examples:
+## Architecture
 
-```console
-kubectl apply -f test/cluster/rbac.yml -f test/cluster/secret.yml
+The credential provider implements the Kubernetes kubelet Credential Provider API
+and integrates with CRI-O's image pull authentication flow. When the kubelet
+needs to pull an image from a registry, it invokes this credential provider,
+which:
+
+1. Receives authentication requests via stdin ([kubelet Credential Provider
+   API](https://kubernetes.io/docs/reference/config-api/kubelet-credentialprovider.v1/)).
+1. Resolves matching mirrors from `/etc/containers/registries.conf` for the
+   provided image from the request.
+1. Finds mirror pull secrets in the Pods namespace by
+   using the service account token from the request and the Kubernetes API.
+1. Extracts the registry credentials from matching Secrets
+1. Generates a short-lived authentication file for the image pull at
+   `/etc/crio/auth/<NAMESPACE>-<IMAGE_NAME_SHA256>.json`, which includes mirror
+   credentials, source registry credentials, and any global pull secrets.
+1. Returns an empty `CredentialProviderResponse` to kubelet to indicate success.
+
+This allows for secure, namespace-scoped credential management without exposing
+credentials in node-level configuration files.
+
+![flow-graph](.github/flow.jpg "Flow graph")
+
+## Version Information
+
+To display version information:
+
+```bash
+./build/crio-credential-provider --version
 ```
 
-Finally, run the test workload:
+For JSON format:
 
-```console
-kubectl apply -f test/cluster/pod.yml
+```bash
+./build/crio-credential-provider --version-json
 ```
 
-The credential provider writes an additional file which can be consumed by
-CRI-O. The CRI-O logs will state that the mirror is being used and not the
-original registry:
+## Contributing
 
-```text
-INFO[2025-09-11T10:01:26.915456743+02:00] Trying to access "localhost:5000/library/nginx:latest"
-INFO[2025-09-11T10:01:26.994748261+02:00] Pulled image: docker.io/library/nginx@sha256:5ff65e8820c7fd8398ca8949e7c4191b93ace149f7ff53a2a7965566bd88ad23  id=057b232a-c168-41ea-9f8e-4a2db672826b name=/runtime.v1.ImageService/PullImage
-```
+Contributions are welcome! This project is part of the CRI-O ecosystem.
 
-The registry also logs the access:
+When contributing:
 
-```console
-podman logs registry
-```
+- Follow the existing code style
+- Run `make lint` to ensure code quality
+- Run `make test` to verify all tests pass
+- Update documentation as needed
 
-```text
-time="2025-09-11T08:01:26.920319786Z" level=info msg="authorized request" go.version=go1.20.8 http.request.host="localhost:5000" http.request.id=ace363e2-c0de-427b-a833-8a3d5ee5d360 http.request.method=GET http.request.remoteaddr="[2001:db8:4860::1]:33432" http.request.uri="/v2/library/nginx/manifests/latest" http.request.useragent="cri-o/1.34.0 go/go1.25.0 os/linux arch/amd64" vars.name="library/nginx" vars.reference=latest
-2001:db8:4860::1 - - [11/Sep/2025:08:01:26 +0000] "GET /v2/library/nginx/manifests/latest HTTP/1.1" 200 1958 "" "cri-o/1.34.0 go/go1.25.0 os/linux arch/amd64"
-time="2025-09-11T08:01:26.920579713Z" level=info msg="response completed" go.version=go1.20.8 http.request.host="localhost:5000" http.request.id=ace363e2-c0de-427b-a833-8a3d5ee5d360 http.request.method=GET http.request.remoteaddr="[2001:db8:4860::1]:33432" http.request.uri="/v2/library/nginx/manifests/latest" http.request.useragent="cri-o/1.34.0 go/go1.25.0 os/linux arch/amd64" http.response.contenttype="application/vnd.oci.image.manifest.v1+json" http.response.duration=2.773353ms http.response.status=200 http.response.written=1958
-time="2025-09-11T08:01:26.9230305Z" level=info msg="authorized request" go.version=go1.20.8 http.request.host="localhost:5000" http.request.id=c35181da-ad5d-4b85-b6d6-415ed2851e6c http.request.method=GET http.request.remoteaddr="[2001:db8:4860::1]:33432" http.request.uri="/v2/library/nginx/blobs/sha256:41f689c209100e6cadf3ce7fdd02035e90dbd1d586716bf8fc6ea55c365b2d81" http.request.useragent="cri-o/1.34.0 go/go1.25.0 os/linux arch/amd64" vars.digest="sha256:41f689c209100e6cadf3ce7fdd02035e90dbd1d586716bf8fc6ea55c365b2d81" vars.name="library/nginx"
-time="2025-09-11T08:01:26.925497207Z" level=info msg="response completed" go.version=go1.20.8 http.request.host="localhost:5000" http.request.id=c35181da-ad5d-4b85-b6d6-415ed2851e6c http.request.method=GET http.request.remoteaddr="[2001:db8:4860::1]:33432" http.request.uri="/v2/library/nginx/blobs/sha256:41f689c209100e6cadf3ce7fdd02035e90dbd1d586716bf8fc6ea55c365b2d81" http.request.useragent="cri-o/1.34.0 go/go1.25.0 os/linux arch/amd64" http.response.contenttype="application/octet-stream" http.response.duration=4.248009ms http.response.status=200 http.response.written=8594
-2001:db8:4860::1 - - [11/Sep/2025:08:01:26 +0000] "GET /v2/library/nginx/blobs/sha256:41f689c209100e6cadf3ce7fdd02035e90dbd1d586716bf8fc6ea55c365b2d81 HTTP/1.1" 200 8594 "" "cri-o/1.34.0 go/go1.25.0 os/linux arch/amd64"
-```
+## Related Projects
+
+- [CRI-O](https://github.com/cri-o/cri-o) - OCI-based Kubernetes Container Runtime Interface
+- [Kubernetes](https://github.com/kubernetes/kubernetes) - Container orchestration platform
