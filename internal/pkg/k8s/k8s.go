@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
@@ -80,16 +81,24 @@ func RetrieveSecrets(ctx context.Context, clientFunc ClientFunc, token, namespac
 // APIServerHost can be used to retrieve the API server host:port combination
 // from either /etc/kubernetes/apiserver-url.env or falling back to the default
 // localhost:6443 one.
-func APIServerHost() string {
+func APIServerHost(rootDir string) string {
 	const (
-		envFilePath = "/etc/kubernetes/apiserver-url.env"
-		defaultHost = "localhost:6443"
+		defaultHost             = "localhost:6443"
+		defaultAPIServerEnvFile = "apiserver-url.env"
 	)
+
+	if !filepath.IsAbs(rootDir) {
+		logger.L().Printf("Provided API server config dir %q is not an absolute path", rootDir)
+
+		return defaultHost
+	}
+
+	envFilePath := filepath.Join(rootDir, defaultAPIServerEnvFile)
 
 	if err := godotenv.Load(envFilePath); os.IsNotExist(err) {
 		logger.L().Printf("Unable to find env file %q, using default API server host: %s", envFilePath, defaultHost)
 
-		return "localhost:6443"
+		return defaultHost
 	}
 
 	host := fmt.Sprintf("%s:%s", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"))
