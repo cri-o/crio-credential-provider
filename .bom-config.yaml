@@ -1,0 +1,18 @@
+---
+namespace: https://github.com/cri-o/crio-credential-provider
+license: Apache-2.0
+name: crio-credential-provider
+creator:
+  person: The CRI-O Authors
+  tool: crio-credential-provider
+
+artifacts:
+  - type: file
+    source: crio-credential-provider-amd64-linux
+    license: Apache-2.0
+    gomodules: true
+
+  - type: file
+    source: crio-credential-provider-arm64-linux
+    license: Apache-2.0
+    gomodules: true
