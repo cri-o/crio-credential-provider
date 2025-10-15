@@ -40,7 +40,7 @@ func main() {
 		config.KubeletAuthFilePath,
 		func(token string) (kubernetes.Interface, error) {
 			return kubernetes.NewForConfig(&rest.Config{
-				Host:            k8s.APIServerHost(),
+				Host:            k8s.APIServerHost(config.KubernetesConfigDir),
 				BearerToken:     token,
 				TLSClientConfig: rest.TLSClientConfig{Insecure: true},
 			})

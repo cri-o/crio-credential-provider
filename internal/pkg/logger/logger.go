@@ -23,7 +23,7 @@ func L() *log.Logger {
 	return instance
 }
 
-// newLogger createas a new default logger instance.
+// newLogger creates a new default logger instance.
 func newLogger() *log.Logger {
 	writer := io.MultiWriter(os.Stderr, &journalWriter{})
 
