@@ -95,13 +95,34 @@ make shellcheck
 
 ### End-to-end Tests
 
-Run end-to-end tests using Vagrant:
+The end-to-end tests are written using [bats](https://github.com/bats-core/bats-core) (Bash Automated Testing System).
 
-```bash
+To run the full test suite using a Vagrant machine:
+
+```console
 make e2e
 ```
 
-This will set up a test environment and run the full integration test suite.
+Or run the tests locally for an already set-up cluster:
+
+```console
+cd test
+bats e2e.bats
+```
+
+The test suite includes:
+
+- **Mirror found test**: Validates that mirrors are correctly identified and auth files are written
+- **No mirror found test**: Ensures proper handling when no mirrors are configured
+- **No registries.conf test**: Validates behavior when registries.conf doesn't exist
+- **Version test**: Validates the `--version` and `--version-json` flags
+
+### Test Structure
+
+- [`test/e2e.bats`](test/e2e.bats) - Main test file containing all test cases
+- [`test/helpers.bash`](test/helpers.bash) - Shared helper functions used across tests
+- [`test/e2e-run`](test/e2e-run) - Wrapper script that executes the bats test suite
+- [`test/e2e-setup`](test/e2e-setup) - Initial setup script for configuring Kubernetes and CRI-O
 
 ### Verifying Dependencies
 

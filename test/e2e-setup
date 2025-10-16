@@ -16,6 +16,7 @@ curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/ma
 echo "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/main/deb/ /" | tee /etc/apt/sources.list.d/cri-o.list
 apt-get update
 apt-get install -y \
+    bats \
     cri-o \
     jq \
     kubelet \
