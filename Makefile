@@ -28,6 +28,8 @@ else
     BUILD_DATE ?= $(shell date -u "$(DATE_FMT)")
 endif
 
+TEST_DIR := test
+BATSFILES := $(wildcard $(TEST_DIR)/*.bats)
 LDFLAGS := -s -w -X github.com/cri-o/$(PROJECT)/pkg/config.RegistriesConfPath=$(REGISTRIES_CONF) -X github.com/cri-o/$(PROJECT)/internal/pkg/version.buildDate=$(BUILD_DATE)
 
 all: $(BUILD_DIR)/$(PROJECT) ## Build the binary
@@ -58,7 +60,7 @@ $(BUILD_DIR)/$(PROJECT): $(BUILD_DIR) $(BUILD_FILES)
 .PHONY: clean
 clean: ## Clean the build directory
 	rm -rf $(BUILD_DIR)
-	cd test && vagrant destroy -f
+	cd $(TEST_DIR) && vagrant destroy -f
 
 .PHONY: test
 test: $(BUILD_DIR) ## Run the unit tests
@@ -94,11 +96,13 @@ $(SHFMT): $(BUILD_DIR)
 
 .PHONY: shellfiles
 shellfiles: ${SHFMT}
-	$(eval SHELLFILES=$(shell $(SHFMT) -f .))
+	$(eval SHELLFILES=$(shell $(SHFMT) -f . | grep -v .bats))
+
 
 .PHONY: shfmt
 shfmt: shellfiles ## Run shfmt on all shell files
 	$(SHFMT) -ln bash -w -i 4 -d $(SHELLFILES)
+	$(SHFMT) -ln bats -w -sr -d $(BATSFILES)
 
 $(SHELLCHECK): $(BUILD_DIR)
 	URL=https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/shellcheck-$(SHELLCHECK_VERSION).linux.x86_64.tar.xz \
@@ -109,15 +113,15 @@ $(SHELLCHECK): $(BUILD_DIR)
 .PHONY: shellcheck
 shellcheck: shellfiles $(SHELLCHECK) ## Run shellcheck on all shell files
 	$(SHELLCHECK) \
-		-P test \
-		-P test/registry \
+		-P $(TEST_DIR) \
+		-P $(TEST_DIR)/registry \
 		-x \
 		$(SHELLFILES)
 
 .PHONY: e2e
 e2e: $(BUILD_DIR)/$(PROJECT) ## Run the e2e tests
-	cd test && vagrant up
-	test/vagrant-run test/e2e-run
+	cd $(TEST_DIR) && vagrant up
+	$(TEST_DIR)/vagrant-run $(TEST_DIR)/e2e-run
 
 .PHONY: release
 release: ## Build a release using goreleaser
