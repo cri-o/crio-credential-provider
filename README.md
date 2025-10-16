@@ -1,5 +1,14 @@
 # CRI-O Credential Provider
 
+[![CI workflow](https://github.com/cri-o/crio-credential-provider/actions/workflows/ci.yml/badge.svg)](https://github.com/cri-o/crio-credential-provider/actions/workflows/ci.yml)
+[![e2e workflow](https://github.com/cri-o/crio-credential-provider/actions/workflows/e2e.yml/badge.svg)](https://github.com/cri-o/crio-credential-provider/actions/workflows/e2e.yml)
+[![snapshot workflow](https://github.com/cri-o/crio-credential-provider/actions/workflows/snapshot.yml/badge.svg)](https://github.com/cri-o/crio-credential-provider/actions/workflows/snapshot.yml)
+[![Codecov](https://codecov.io/gh/cri-o/crio-credential-provider/branch/main/graph/badge.svg)](https://codecov.io/gh/cri-o/crio-credential-provider)
+[![GoDoc](https://godoc.org/github.com/cri-o/crio-credential-provider?status.svg)](https://godoc.org/github.com/cri-o/crio-credential-provider)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cri-o/crio-credential-provider)](https://goreportcard.com/report/github.com/cri-o/crio-credential-provider)
+[![FOSSA Security](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_shield&issueType=security)
+[![FOSSA License](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_shield)
+
 <p align="center">
   <img src="./.github/logo.svg" alt="Logo" width="240">
 </p>
@@ -155,3 +164,7 @@ When contributing:
 
 - [CRI-O](https://github.com/cri-o/cri-o) - OCI-based Kubernetes Container Runtime Interface
 - [Kubernetes](https://github.com/kubernetes/kubernetes) - Container orchestration platform
+
+## License Scan
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_large)
