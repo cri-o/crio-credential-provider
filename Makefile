@@ -121,7 +121,7 @@ e2e: $(BUILD_DIR)/$(PROJECT) ## Run the e2e tests
 
 .PHONY: release
 release: ## Build a release using goreleaser
-	LDFLAGS="$(LDFLAGS)" release release --clean
+	LDFLAGS="$(LDFLAGS)" goreleaser release --clean
 
 .PHONY: snapshot
 snapshot: ## Build a snapshot using goreleaser
