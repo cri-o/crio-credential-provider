@@ -125,6 +125,7 @@ This allows for secure, namespace-scoped credential management without exposing
 credentials in node-level configuration files.
 
 ![flow-graph](.github/flow.jpg "Flow graph")
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_shield)
 
 ## Version Information
 
@@ -155,3 +156,7 @@ When contributing:
 
 - [CRI-O](https://github.com/cri-o/cri-o) - OCI-based Kubernetes Container Runtime Interface
 - [Kubernetes](https://github.com/kubernetes/kubernetes) - Container orchestration platform
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_large)
