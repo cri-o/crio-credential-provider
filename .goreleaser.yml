@@ -29,6 +29,8 @@ builds:
 
 archives:
   - formats: binary
+    name_template: "{{ .Binary }}"
+    allow_different_binary_count: true
 
 signs:
   # Keyless
