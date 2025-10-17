@@ -60,3 +60,11 @@ None
 -->
 
 #### Special notes for your reviewer:
+
+None
+
+<!-- We use the GitHub release notes generator directly -->
+
+```release-note
+None
+```
