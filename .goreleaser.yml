@@ -13,8 +13,8 @@ builds:
   - id: crio-credential-provider
     dir: .
     no_unique_dist_dir: true
-    binary: crio-credential-provider-{{ .Arch }}-{{ .Os }}
-    main: cmd/crio-credential-provider/main.go
+    binary: crio-credential-provider-{{ .Os }}-{{ .Arch }}
+    main: ./cmd/crio-credential-provider
     goos:
       - linux
     goarch:
