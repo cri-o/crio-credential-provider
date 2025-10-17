@@ -15,35 +15,36 @@ import (
 	cpAuth "github.com/cri-o/crio-credential-provider/pkg/auth"
 )
 
+var (
+	// Pre-computed base64 encoded credentials to avoid repeated encoding.
+	testSecretEncoded = base64.StdEncoding.EncodeToString([]byte("su:sp"))
+	testGlobalEncoded = base64.StdEncoding.EncodeToString([]byte("gu:gp"))
+	testAuthEncoded   = base64.StdEncoding.EncodeToString([]byte("u1:p1"))
+	testValidAuth     = base64.StdEncoding.EncodeToString([]byte("user:pass"))
+)
+
 func TestUpdateAuthContents(t *testing.T) {
 	t.Parallel()
 
-	secretUser := "su"
-	secretPass := "sp"
-	secretEncoded := base64.StdEncoding.EncodeToString([]byte(secretUser + ":" + secretPass))
-
-	globalUser := "gu"
-	globalPass := "gp"
-	globalEncoded := base64.StdEncoding.EncodeToString([]byte(globalUser + ":" + globalPass))
+	secretEncoded := testSecretEncoded
+	globalEncoded := testGlobalEncoded
 
 	assertHas := func(contents docker.ConfigJSON, keys []string, expected string) {
+		t.Helper()
+
 		for _, k := range keys {
 			v, ok := contents.Auths[k]
-			if !ok {
-				t.Fatalf("expected key %q in contents auths: %#v", k, contents.Auths)
-			}
-
-			if v.Auth != expected {
-				t.Fatalf("expected key %q to have auth %q, got %q", k, expected, v.Auth)
-			}
+			require.True(t, ok, "expected key %q in contents auths: %#v", k, contents.Auths)
+			require.Equal(t, expected, v.Auth, "expected key %q to have auth %q, got %q", k, expected, v.Auth)
 		}
 	}
 
 	assertMissing := func(contents docker.ConfigJSON, keys []string) {
+		t.Helper()
+
 		for _, k := range keys {
-			if _, ok := contents.Auths[k]; ok {
-				t.Fatalf("did not expect key %q in contents auths: %#v", k, contents.Auths)
-			}
+			_, ok := contents.Auths[k]
+			require.False(t, ok, "did not expect key %q in contents auths: %#v", k, contents.Auths)
 		}
 	}
 
@@ -122,20 +123,14 @@ func TestUpdateAuthContents(t *testing.T) {
 func TestCreateAuthFile(t *testing.T) {
 	t.Parallel()
 
-	user := "u1"
-	pass := "p1"
-	auth := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))
-
 	cfg := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{
-		"quay.io":          {Auth: auth},
-		"cache.local:5000": {Auth: auth},
-		"registry.local":   {Auth: auth},
+		"quay.io":          {Auth: testAuthEncoded},
+		"cache.local:5000": {Auth: testAuthEncoded},
+		"registry.local":   {Auth: testAuthEncoded},
 	}}
 
 	cfgBytes, err := json.Marshal(cfg)
-	if err != nil {
-		t.Fatalf("marshal auth config: %v", err)
-	}
+	require.NoError(t, err)
 
 	secret := corev1.Secret{
 		Type: corev1.SecretTypeDockerConfigJson,
@@ -153,11 +148,7 @@ func TestCreateAuthFile(t *testing.T) {
 	authDir := t.TempDir()
 
 	path, err := CreateAuthFile(secrets, "", authDir, namespace, image, mirrors)
-	if err != nil {
-		t.Fatalf("CreateAuthFile error: %v", err)
-	}
-
-	t.Cleanup(func() { _ = os.Remove(path) })
+	require.NoError(t, err)
 
 	wantPath, err := cpAuth.FilePath(authDir, namespace, image)
 	require.NoError(t, err)
@@ -181,15 +172,13 @@ func TestCreateAuthFile(t *testing.T) {
 func buildSecretList(t *testing.T, encoded string, regs []string) *corev1.SecretList {
 	t.Helper()
 
-	cfg := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{}}
+	cfg := docker.ConfigJSON{Auths: make(map[string]docker.AuthConfig, len(regs))}
 	for _, r := range regs {
 		cfg.Auths[r] = docker.AuthConfig{Auth: encoded}
 	}
 
 	cfgBytes, err := json.Marshal(cfg)
-	if err != nil {
-		t.Fatalf("marshal auth config: %v", err)
-	}
+	require.NoError(t, err)
 
 	secret := corev1.Secret{
 		Type: corev1.SecretTypeDockerConfigJson,
@@ -206,7 +195,7 @@ func buildGlobalConfig(encoded string, regs []string) docker.ConfigJSON {
 		return docker.ConfigJSON{}
 	}
 
-	g := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{}}
+	g := docker.ConfigJSON{Auths: make(map[string]docker.AuthConfig, len(regs))}
 	for _, reg := range regs {
 		g.Auths[reg] = docker.AuthConfig{Auth: encoded}
 	}
@@ -232,11 +221,8 @@ func TestReadGlobalAuthFile(t *testing.T) {
 	}
 }
 `
-	if err := os.WriteFile(authPath, []byte(conf), 0o600); err != nil {
-		t.Fatalf("failed to write temp auth.json: %v", err)
-	}
-
-	t.Cleanup(func() { _ = os.Remove(authPath) })
+	err := os.WriteFile(authPath, []byte(conf), 0o600)
+	require.NoError(t, err)
 
 	contents, err := readGlobalAuthFile(authPath)
 	require.NoError(t, err)
@@ -253,11 +239,8 @@ func TestReadGlobalAuthFile(t *testing.T) {
 	assert.Empty(t, contents.Auths)
 
 	invalidPath := filepath.Join(dir, "invalid.json")
-	if err := os.WriteFile(invalidPath, []byte("not valid json"), 0o600); err != nil {
-		t.Fatalf("failed to write invalid json: %v", err)
-	}
-
-	t.Cleanup(func() { _ = os.Remove(invalidPath) })
+	err = os.WriteFile(invalidPath, []byte("not valid json"), 0o600)
+	require.NoError(t, err)
 
 	_, err = readGlobalAuthFile(invalidPath)
 	require.Error(t, err)
@@ -266,9 +249,8 @@ func TestReadGlobalAuthFile(t *testing.T) {
 func TestValidDockerConfigSecret(t *testing.T) {
 	t.Parallel()
 
-	validAuth := base64.StdEncoding.EncodeToString([]byte("user:pass"))
 	cfg := docker.ConfigJSON{Auths: map[string]docker.AuthConfig{
-		"quay.io": {Auth: validAuth},
+		"quay.io": {Auth: testValidAuth},
 	}}
 	cfgBytes, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -378,10 +360,9 @@ func TestDecodeDockerAuth(t *testing.T) {
 func TestWriteAuthFile(t *testing.T) {
 	t.Parallel()
 
-	auth := base64.StdEncoding.EncodeToString([]byte("user:pass"))
 	validContents := docker.ConfigJSON{
 		Auths: map[string]docker.AuthConfig{
-			"quay.io": {Auth: auth},
+			"quay.io": {Auth: testValidAuth},
 		},
 	}
 

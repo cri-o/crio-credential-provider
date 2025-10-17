@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,16 +35,51 @@ const (
 	usernamePasswordBase64 = "bXl1c2VyOm15cGFzc3dvcmQ="
 )
 
-func prepareToken(t *testing.T, claims jwt.MapClaims) string {
-	t.Helper()
+var (
+	// Cache the ECDSA key to avoid expensive key generation for every test.
+	testECDSAKey     *ecdsa.PrivateKey
+	testECDSAKeyOnce sync.Once
+
+	// Pre-computed registry config content to avoid repeated fmt.Fprintf.
+	testRegistryConfig = fmt.Sprintf("[[registry]]\nlocation = %q\n[[registry.mirror]]\nlocation = %q", registry, mirror)
+
+	// Pre-computed secret data to avoid repeated fmt.Appendf.
+	testSecretData = fmt.Appendf([]byte{},
+		`{"auths":{"http://%s":{"username":"myuser","password":"mypassword","auth":%q}}}`,
+		mirror, usernamePasswordBase64,
+	)
+)
+
+type testingTB interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
+func getTestECDSAKey(tb testingTB) *ecdsa.PrivateKey {
+	tb.Helper()
+
+	testECDSAKeyOnce.Do(func() {
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			tb.Fatalf("failed to generate ECDSA key: %v", err)
+		}
+
+		testECDSAKey = key
+	})
+
+	return testECDSAKey
+}
+
+func prepareToken(tb testingTB, claims jwt.MapClaims) string {
+	tb.Helper()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	key := getTestECDSAKey(tb)
 
 	tokenString, err := token.SignedString(key)
-	require.NoError(t, err)
+	if err != nil {
+		tb.Fatalf("failed to sign token: %v", err)
+	}
 
 	return tokenString
 }
@@ -52,9 +88,9 @@ func TestRun(t *testing.T) {
 	t.Parallel()
 
 	requestBuffer := func(includeNamespace bool) *bytes.Buffer {
-		buffer := &bytes.Buffer{}
+		t.Helper()
 
-		claims := jwt.MapClaims{}
+		var claims jwt.MapClaims
 		if includeNamespace {
 			claims = jwt.MapClaims{k8sClaimKey: map[string]any{"namespace": namespace}}
 		}
@@ -67,13 +103,12 @@ func TestRun(t *testing.T) {
 		res, err := json.Marshal(req)
 		require.NoError(t, err)
 
-		_, err = buffer.Write(res)
-		require.NoError(t, err)
-
-		return buffer
+		return bytes.NewBuffer(res)
 	}
 
 	tempDirWithRegistriesConf := func() (string, *os.File) {
+		t.Helper()
+
 		tempDir := t.TempDir()
 		registriesConf, err := os.CreateTemp(tempDir, "")
 		require.NoError(t, err)
@@ -89,7 +124,7 @@ func TestRun(t *testing.T) {
 			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
 				tempDir, registriesConf := tempDirWithRegistriesConf()
 
-				_, err := fmt.Fprintf(registriesConf, "[[registry]]\nlocation = %q\n[[registry.mirror]]\nlocation = %q", registry, mirror)
+				_, err := registriesConf.WriteString(testRegistryConfig)
 				require.NoError(t, err)
 
 				clientFunc := func(string) (kubernetes.Interface, error) {
@@ -101,10 +136,7 @@ func TestRun(t *testing.T) {
 							},
 							Type: corev1.SecretTypeDockerConfigJson,
 							Data: map[string][]byte{
-								corev1.DockerConfigJsonKey: fmt.Appendf([]byte{},
-									`{"auths":{"http://%s":{"username":"myuser","password":"mypassword","auth":%q}}}`,
-									mirror, usernamePasswordBase64,
-								),
+								corev1.DockerConfigJsonKey: testSecretData,
 							},
 						},
 					}}), nil
@@ -167,7 +199,7 @@ func TestRun(t *testing.T) {
 			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
 				tempDir, registriesConf := tempDirWithRegistriesConf()
 
-				_, err := fmt.Fprintf(registriesConf, "[[registry]]\nlocation = %q\n[[registry.mirror]]\nlocation = %q", registry, mirror)
+				_, err := registriesConf.WriteString(testRegistryConfig)
 				require.NoError(t, err)
 
 				clientFunc := func(string) (kubernetes.Interface, error) {

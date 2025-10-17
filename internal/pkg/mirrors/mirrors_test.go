@@ -28,11 +28,8 @@ location = "quay.io"
   [[registry.mirror]]
   location = "cache.local:5000"
 `
-	if err := os.WriteFile(confPath, []byte(conf), 0o600); err != nil {
-		t.Fatalf("failed to write temp registries.conf: %v", err)
-	}
-
-	t.Cleanup(func() { _ = os.Remove(confPath) })
+	err := os.WriteFile(confPath, []byte(conf), 0o600)
+	require.NoError(t, err)
 
 	req := &cpv1.CredentialProviderRequest{Image: "quay.io/library/nginx"}
 

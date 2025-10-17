@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -22,14 +23,31 @@ import (
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
+var (
+	// Cache the ECDSA key to avoid expensive key generation for every test.
+	testECDSAKey     *ecdsa.PrivateKey
+	testECDSAKeyOnce sync.Once
+)
+
+func getTestECDSAKey(t *testing.T) *ecdsa.PrivateKey {
+	t.Helper()
+
+	testECDSAKeyOnce.Do(func() {
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+
+		testECDSAKey = key
+	})
+
+	return testECDSAKey
+}
+
 func TestExtractNamespace(t *testing.T) {
 	t.Parallel()
 
 	prepareToken := func(claims jwt.MapClaims) string {
 		token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
-
-		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		require.NoError(t, err)
+		key := getTestECDSAKey(t)
 
 		tokenString, err := token.SignedString(key)
 		require.NoError(t, err)
