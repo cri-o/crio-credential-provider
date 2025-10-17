@@ -129,4 +129,4 @@ release: ## Build a release using goreleaser
 
 .PHONY: snapshot
 snapshot: ## Build a snapshot using goreleaser
-	LDFLAGS="$(LDFLAGS)" goreleaser release --clean --snapshot --skip=sign,publish
+	LDFLAGS="$(LDFLAGS)" goreleaser release --clean --snapshot --skip=sign,publish --verbose

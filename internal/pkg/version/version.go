@@ -15,7 +15,7 @@ import (
 )
 
 // Version is the version of the build.
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 // Variables injected during build-time.
 var buildDate string // build date in ISO8601 format, output of $(date -u +'%Y-%m-%dT%H:%M:%SZ')

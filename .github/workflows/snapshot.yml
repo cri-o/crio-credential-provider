@@ -17,4 +17,4 @@ jobs:
         with:
           install-only: true
       - run: make snapshot
-      - run: dist/crio-credential-provider-amd64-linux --version
+      - run: dist/crio-credential-provider-linux-amd64 --version
