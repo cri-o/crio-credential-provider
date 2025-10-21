@@ -18,3 +18,7 @@ jobs:
           install-only: true
       - run: make snapshot
       - run: dist/crio-credential-provider-linux-amd64 --version
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist
+          path: dist/*
