@@ -16,14 +16,20 @@ import (
 	"github.com/cri-o/crio-credential-provider/pkg/auth"
 )
 
+var (
+	errNoAuths        = errors.New("no auths found in file contents")
+	errNamespaceEmpty = errors.New("namespace is empty")
+	errSecretsNil     = errors.New("secrets is nil")
+)
+
 // CreateAuthFile can be used to create a auth file to /etc/crio/auth which follows the convention for CRI-O consumption.
 func CreateAuthFile(secrets *corev1.SecretList, globalAuthFilePath, authDir, namespace, image string, mirrors []string) (string, error) {
 	if namespace == "" {
-		return "", errors.New("namespace is empty")
+		return "", errNamespaceEmpty
 	}
 
 	if secrets == nil {
-		return "", errors.New("secrets is nil")
+		return "", errSecretsNil
 	}
 
 	globalAuthContents, err := readGlobalAuthFile(globalAuthFilePath)
@@ -67,12 +73,20 @@ func readGlobalAuthFile(path string) (docker.ConfigJSON, error) {
 
 func updateAuthContents(secrets *corev1.SecretList, globalAuthContents docker.ConfigJSON, image string, mirrors []string) docker.ConfigJSON {
 	// Collect all matching auths keyed by registry or mirror
-	auths := make(map[string]docker.ConfigEntry)
+	// Pre-allocate with estimated capacity to reduce reallocations
+	estimatedCapacity := len(secrets.Items) * len(mirrors)
+	if estimatedCapacity == 0 {
+		estimatedCapacity = 8 // reasonable default
+	}
 
-	for _, secret := range secrets.Items {
+	auths := make(map[string]docker.ConfigEntry, estimatedCapacity)
+
+	// Optimize by avoiding range value copies for large structs
+	for i := range secrets.Items {
+		secret := &secrets.Items[i]
 		logger.L().Printf("Parsing secret: %s", secret.Name)
 
-		dockerConfigJSON, err := validDockerConfigSecret(secret)
+		dockerConfigJSON, err := validDockerConfigSecret(*secret)
 		if err != nil {
 			logger.L().Printf("Skipping secret %q: %v", secret.Name, err)
 
@@ -90,12 +104,18 @@ func updateAuthContents(secrets *corev1.SecretList, globalAuthContents docker.Co
 			}
 
 			trimmedRegistry := normalizeSecretRegistry(registry)
-			for _, m := range mirrors {
+
+			// Check mirrors with early exit optimization
+			mirrorsLen := len(mirrors)
+			for j := range mirrorsLen {
+				m := mirrors[j]
 				logger.L().Printf("Checking if mirror %q matches registry %q", m, trimmedRegistry)
 
 				if strings.HasPrefix(m, trimmedRegistry) {
 					logger.L().Printf("Using mirror auth %q for registry from secret %q", m, trimmedRegistry)
 					auths[trimmedRegistry] = auth
+
+					break // No need to check remaining mirrors once matched
 				}
 			}
 
@@ -118,7 +138,12 @@ func updateAuthContents(secrets *corev1.SecretList, globalAuthContents docker.Co
 	}
 
 	for k, e := range auths {
-		encoded := base64.StdEncoding.EncodeToString([]byte(e.Username + ":" + e.Password))
+		// Pre-calculate the size to avoid string concatenation allocations
+		credentials := make([]byte, 0, len(e.Username)+1+len(e.Password))
+		credentials = append(credentials, e.Username...)
+		credentials = append(credentials, ':')
+		credentials = append(credentials, e.Password...)
+		encoded := base64.StdEncoding.EncodeToString(credentials)
 		fileContents.Auths[k] = docker.AuthConfig{Auth: encoded}
 	}
 
@@ -165,20 +190,21 @@ func decodeDockerAuth(conf docker.AuthConfig) (docker.ConfigEntry, error) {
 }
 
 func normalizeSecretRegistry(reg string) string {
-	trimmed := strings.TrimPrefix(reg, "http://")
-	trimmed = strings.TrimPrefix(trimmed, "https://")
+	// Avoid double allocation by checking which prefix exists first
+	if strings.HasPrefix(reg, "https://") {
+		return reg[8:] // len("https://") == 8
+	}
 
-	return trimmed
+	if strings.HasPrefix(reg, "http://") {
+		return reg[7:] // len("http://") == 7
+	}
+
+	return reg
 }
 
 func writeAuthFile(dir, image, namespace string, fileContents docker.ConfigJSON) (string, error) {
 	if len(fileContents.Auths) == 0 {
-		return "", errors.New("no auths found in file contents")
-	}
-
-	bytes, err := json.MarshalIndent(fileContents, "", "\t")
-	if err != nil {
-		return "", fmt.Errorf("marshal auth file: %w", err)
+		return "", errNoAuths
 	}
 
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -190,8 +216,23 @@ func writeAuthFile(dir, image, namespace string, fileContents docker.ConfigJSON)
 		return "", fmt.Errorf("get auth path: %w", err)
 	}
 
-	if err := os.WriteFile(path, bytes, 0o600); err != nil {
-		return "", fmt.Errorf("write auth file: %w", err)
+	// Write directly to file using encoder to avoid intermediate buffer allocation
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return "", fmt.Errorf("open auth file: %w", err)
+	}
+
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			logger.L().Printf("Failed to close auth file: %v", closeErr)
+		}
+	}()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "\t")
+
+	if err := encoder.Encode(fileContents); err != nil {
+		return "", fmt.Errorf("encode auth file: %w", err)
 	}
 
 	return path, nil

@@ -10,10 +10,12 @@ import (
 	cpv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 )
 
+var errRequestNilOrImageEmpty = errors.New("request is nil or image is empty")
+
 // Match can be used to retrieve all mirrors for a registry configuration.
 func Match(req *cpv1.CredentialProviderRequest, registriesConfPath string) ([]string, error) {
 	if req == nil || req.Image == "" {
-		return nil, errors.New("request is nil or image is empty")
+		return nil, errRequestNilOrImageEmpty
 	}
 
 	ctx := &types.SystemContext{SystemRegistriesConfPath: registriesConfPath}
@@ -28,8 +30,13 @@ func Match(req *cpv1.CredentialProviderRequest, registriesConfPath string) ([]st
 	}
 
 	// req.Image should include the explicit hostname
-	sources := make([]string, len(registry.Mirrors))
+	// Pre-allocate slice with exact capacity needed
+	mirrorCount := len(registry.Mirrors)
+	if mirrorCount == 0 {
+		return nil, nil
+	}
 
+	sources := make([]string, mirrorCount)
 	for i, mirror := range registry.Mirrors {
 		sources[i] = mirror.Location
 	}

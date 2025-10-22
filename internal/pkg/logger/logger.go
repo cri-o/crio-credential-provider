@@ -36,9 +36,13 @@ func (*journalWriter) Write(p []byte) (int, error) {
 	// log.Ldate + log.Ltime have a length of 20 including 2 spaces
 	const trimLen = 20
 
-	trimmed := string(p)
+	// Avoid string allocation by using byte slicing directly
+	var trimmed string
 	if len(p) > trimLen {
-		trimmed = trimmed[trimLen:]
+		// Convert only the necessary portion to string
+		trimmed = string(p[trimLen:])
+	} else {
+		trimmed = string(p)
 	}
 
 	if err := journal.Send(trimmed, journal.PriInfo, nil); err != nil {
