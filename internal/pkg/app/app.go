@@ -2,12 +2,15 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +21,12 @@ import (
 	"github.com/cri-o/crio-credential-provider/internal/pkg/logger"
 	"github.com/cri-o/crio-credential-provider/internal/pkg/mirrors"
 )
+
+var bufferPool = sync.Pool{
+	New: func() any {
+		return bytes.NewBuffer(make([]byte, 0, 256))
+	},
+}
 
 // Run is the main entry point for the whole credential provider application.
 func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath string, clientFunc k8s.ClientFunc) error {
@@ -35,16 +44,13 @@ func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath strin
 
 	logger.L().Print("Reading from stdin")
 
-	stdinBytes, err := io.ReadAll(stdin)
-	if err != nil {
-		return fmt.Errorf("unable to read credential provider request from stdin: %w", err)
-	}
-
-	logger.L().Print("Got stdin, parsing JSON as CredentialProviderRequest")
-
+	// Use json.Decoder directly instead of reading all bytes first
+	// This is more efficient for streaming input
 	req := &cpv1.CredentialProviderRequest{}
-	if err := json.Unmarshal(stdinBytes, req); err != nil {
-		return fmt.Errorf("unable to parse JSON: %w", err)
+
+	decoder := json.NewDecoder(stdin)
+	if err := decoder.Decode(req); err != nil {
+		return fmt.Errorf("unable to parse credential provider request from stdin: %w", err)
 	}
 
 	// req.Image does not contain the full image reference. It's a result of
@@ -84,6 +90,11 @@ func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath strin
 
 	secrets, err := k8s.RetrieveSecrets(ctx, clientFunc, req.ServiceAccountToken, namespace)
 	if err != nil {
+		// Check if context was cancelled or timed out
+		if ctx.Err() != nil {
+			return fmt.Errorf("unable to get secrets (context error): %w", err)
+		}
+
 		return fmt.Errorf("unable to get secrets: %w", err)
 	}
 
@@ -101,14 +112,31 @@ func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath strin
 
 func response() error {
 	// Provide an empty response to the kubelet
-	if err := json.NewEncoder(os.Stdout).Encode(cpv1.CredentialProviderResponse{
+	// Use sync.Pool to reuse buffers across invocations
+	bufInterface := bufferPool.Get()
+
+	buf, ok := bufInterface.(*bytes.Buffer)
+	if !ok {
+		return errors.New("buffer pool returned unexpected type")
+	}
+
+	buf.Reset()
+	defer bufferPool.Put(buf)
+
+	resp := cpv1.CredentialProviderResponse{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CredentialProviderResponse",
 			APIVersion: "credentialprovider.kubelet.k8s.io/v1",
 		},
 		CacheKeyType: cpv1.RegistryPluginCacheKeyType,
-	}); err != nil {
+	}
+
+	if err := json.NewEncoder(buf).Encode(resp); err != nil {
 		return fmt.Errorf("unable to marshal credential provider response: %w", err)
+	}
+
+	if _, err := buf.WriteTo(os.Stdout); err != nil {
+		return fmt.Errorf("unable to write credential provider response: %w", err)
 	}
 
 	return nil

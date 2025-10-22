@@ -20,18 +20,29 @@ import (
 
 const k8sClaimKey = "kubernetes.io"
 
+var (
+	errRequestEmpty       = errors.New("request is empty")
+	errTokenEmpty         = errors.New("request service account token is empty")
+	errNoNamespaceInClaim = errors.New("no namespace found in kubernetes claim")
+	errNamespaceNotString = errors.New("namespace is not a string object")
+	errNoK8sClaimMap      = errors.New("kubernetes.io claim does not contain a map")
+)
+
 // ExtractNamespace extracts the namespace from the provided credential provider request.
 func ExtractNamespace(req *cpv1.CredentialProviderRequest) (string, error) {
 	if req == nil {
-		return "", errors.New("request is empty")
+		return "", errRequestEmpty
 	}
 
 	if req.ServiceAccountToken == "" {
-		return "", errors.New("request service account token is empty")
+		return "", errTokenEmpty
 	}
 
+	// Use a reusable parser to avoid allocations
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+
 	claims := jwt.MapClaims{}
-	if _, _, err := jwt.NewParser().ParseUnverified(req.ServiceAccountToken, claims); err != nil {
+	if _, _, err := parser.ParseUnverified(req.ServiceAccountToken, claims); err != nil {
 		return "", fmt.Errorf("unable to parse JWT token: %w", err)
 	}
 
@@ -42,17 +53,17 @@ func ExtractNamespace(req *cpv1.CredentialProviderRequest) (string, error) {
 
 	k8sClaimMap, ok := k8sClaim.(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("%s claim does not contain a map", k8sClaimKey)
+		return "", errNoK8sClaimMap
 	}
 
 	namespaceAny, ok := k8sClaimMap["namespace"]
 	if !ok {
-		return "", errors.New("no namespace found in kubernetes claim")
+		return "", errNoNamespaceInClaim
 	}
 
 	namespace, ok := namespaceAny.(string)
 	if !ok {
-		return "", errors.New("namespace is not a string object")
+		return "", errNamespaceNotString
 	}
 
 	return namespace, nil
@@ -101,7 +112,10 @@ func APIServerHost(rootDir string) string {
 		return defaultHost
 	}
 
-	host := fmt.Sprintf("%s:%s", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"))
+	// Avoid fmt.Sprintf allocation for simple string concatenation
+	serviceHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+	servicePort := os.Getenv("KUBERNETES_SERVICE_PORT")
+	host := serviceHost + ":" + servicePort
 	logger.L().Printf("Using API server host: %s", host)
 
 	return host

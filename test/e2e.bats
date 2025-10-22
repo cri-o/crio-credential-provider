@@ -57,7 +57,6 @@ teardown() {
 	cat > "$EXPECTED" << EOL
 Running credential provider
 Reading from stdin
-Got stdin, parsing JSON as CredentialProviderRequest
 Parsed credential provider request for image "docker.io/library/nginx"
 Parsing namespace from request
 Matching mirrors for registry config: $REGISTRIES_CONF_PATH
@@ -105,7 +104,6 @@ EOL
 	cat > "$EXPECTED" << EOL
 Running credential provider
 Reading from stdin
-Got stdin, parsing JSON as CredentialProviderRequest
 Parsed credential provider request for image "docker.io/library/nginx"
 Parsing namespace from request
 Matching mirrors for registry config: $REGISTRIES_CONF_PATH
