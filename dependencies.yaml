@@ -13,7 +13,7 @@ dependencies:
         match: ZEITGEIST_VERSION
 
   - name: golangci-lint
-    version: v2.5.0
+    version: v2.6.2
     refPaths:
       - path: .github/workflows/ci.yml
         match: GOLANGCI_LINT_VERSION
