@@ -19,6 +19,7 @@ import (
 func main() {
 	showVersion := flag.Bool("version", false, "Display version information")
 	showVersionJSON := flag.Bool("version-json", false, "Display version information as JSON")
+
 	flag.Parse()
 
 	if *showVersion {
