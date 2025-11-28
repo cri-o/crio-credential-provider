@@ -5,6 +5,8 @@ dependencies:
     refPaths:
       - path: go.mod
         match: go
+      - path: crio-credential-provider.spec
+        match: golang_version
 
   - name: zeitgeist
     version: 0.5.4
@@ -43,3 +45,11 @@ dependencies:
     refPaths:
       - path: test/Vagrantfile
         match: config.vm.box
+
+  - name: rpm-version
+    version: 0.0.1
+    refPaths:
+      - path: .github/workflows/ci.yml
+        match: VERSION
+      - path: crio-credential-provider.spec
+        match: version

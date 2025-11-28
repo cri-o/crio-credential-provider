@@ -101,3 +101,26 @@ jobs:
         with:
           dry: true
           prettier_options: --write .
+
+  rpm:
+    runs-on: ubuntu-24.04
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - name: Install dependencies
+        run: |
+          dnf install -y rpm-build rpmdevtools golang make
+      - name: Create source tarball
+        run: |
+          VERSION=0.0.1
+          rpmdev-setuptree
+          tar --transform="s|^\.|crio-credential-provider-${VERSION}|" --exclude=.git -czf ${HOME}/rpmbuild/SOURCES/crio-credential-provider.tar.gz .
+      - name: Build RPM
+        run: |
+          rpmbuild -ba ${GITHUB_WORKSPACE}/crio-credential-provider.spec
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: rpm-packages
+          path: |
+            /github/home/rpmbuild/RPMS/**/*.rpm
+            /github/home/rpmbuild/SRPMS/*.rpm
