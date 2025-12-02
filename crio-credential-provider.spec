@@ -32,19 +32,19 @@ see: https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-prov
 %autosetup
 
 %build
-CGO_ENABLED=0 go build \
+go build \
     -trimpath \
-    -ldflags="-s -w -X 'github.com/cri-o/%{name}/internal/pkg/version.buildDate=$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)' -X 'github.com/cri-o/%{name}/pkg/config.RegistriesConfPath=/etc/containers/registries.conf'" \
-    -o=%{name} \
-    ./cmd/%{name}
+    -ldflags="-s -w -X 'github.com/cri-o/crio-credential-provider/internal/pkg/version.buildDate=$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)' -X 'github.com/cri-o/crio-credential-provider/pkg/config.RegistriesConfPath=/etc/containers/registries.conf'" \
+    -o=crio-credential-provider \
+    ./cmd/crio-credential-provider
 
 %install
 install -d %{buildroot}%{_libexecdir}/kubelet-image-credential-provider-plugins
-install -p -m 755 %{name} %{buildroot}%{_libexecdir}/kubelet-image-credential-provider-plugins/%{name}
+install -p -m 755 crio-credential-provider %{buildroot}%{_libexecdir}/kubelet-image-credential-provider-plugins/crio-credential-provider
 
 %files
 %license LICENSE
-%{_libexecdir}/kubelet-image-credential-provider-plugins/%{name}
+%{_libexecdir}/kubelet-image-credential-provider-plugins/crio-credential-provider
 
 %changelog
 * Thu Nov 28 2024 Sascha Grunert <sgrunert@redhat.com> - 0.0.1
