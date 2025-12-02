@@ -91,6 +91,17 @@ $(ZEITGEIST): $(BUILD_DIR)
 dependencies: $(ZEITGEIST) ## Verify the local dependencies
 	$(ZEITGEIST) validate --local-only --base-path . --config dependencies.yaml
 
+.PHONY: verify-vendor
+verify-vendor: ## Verify that vendored dependencies are up to date
+	$(GO) mod tidy
+	$(GO) mod vendor
+	@if [ -n "$$(git status --porcelain vendor go.mod go.sum)" ]; then \
+		echo "ERROR: vendor directory is out of date. Please run 'go mod tidy && go mod vendor' and commit the changes."; \
+		git status --porcelain vendor go.mod go.sum; \
+		git diff vendor go.mod go.sum; \
+		exit 1; \
+	fi
+
 $(SHFMT): $(BUILD_DIR)
 	$(call curl_to,https://github.com/mvdan/sh/releases/download/$(SHFMT_VERSION)/shfmt_$(SHFMT_VERSION)_linux_amd64,$(SHFMT))
 
