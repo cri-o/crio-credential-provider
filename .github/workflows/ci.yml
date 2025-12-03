@@ -121,7 +121,7 @@ jobs:
           dnf install -y rpm-build rpmdevtools golang make
       - name: Create source tarball
         run: |
-          VERSION=0.0.1
+          VERSION=0.1.2
           rpmdev-setuptree
           tar --transform="s|^\.|crio-credential-provider-${VERSION}|" --exclude=.git -czf ${HOME}/rpmbuild/SOURCES/crio-credential-provider.tar.gz .
       - name: Build RPM
