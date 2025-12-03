@@ -1,5 +1,15 @@
 ---
 dependencies:
+  - name: version
+    version: 0.1.2
+    refPaths:
+      - path: .github/workflows/ci.yml
+        match: VERSION
+      - path: crio-credential-provider.spec
+        match: version
+      - path: internal/pkg/version/version.go
+        match: Version
+
   - name: go
     version: 1.24
     refPaths:
@@ -45,11 +55,3 @@ dependencies:
     refPaths:
       - path: test/Vagrantfile
         match: config.vm.box
-
-  - name: rpm-version
-    version: 0.0.1
-    refPaths:
-      - path: .github/workflows/ci.yml
-        match: VERSION
-      - path: crio-credential-provider.spec
-        match: version

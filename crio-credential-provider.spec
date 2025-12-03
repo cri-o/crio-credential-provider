@@ -8,7 +8,7 @@
 %global __os_install_post %{_rpmconfigdir}/brp-compress
 
 %global golang_version 1.24.0
-%{!?version: %global version 0.0.1}
+%{!?version: %global version 0.1.2}
 %{!?release: %global release 1}
 
 Name: crio-credential-provider
@@ -47,5 +47,8 @@ install -p -m 755 crio-credential-provider %{buildroot}%{_libexecdir}/kubelet-im
 %{_libexecdir}/kubelet-image-credential-provider-plugins/crio-credential-provider
 
 %changelog
+* Wed Dec 03 2025 Sascha Grunert <sgrunert@redhat.com> - 0.1.2
+- Update to 0.1.2
+
 * Thu Nov 28 2024 Sascha Grunert <sgrunert@redhat.com> - 0.0.1
 - Initial package
