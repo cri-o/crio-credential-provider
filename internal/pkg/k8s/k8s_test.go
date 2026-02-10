@@ -143,7 +143,7 @@ func TestRetrieveSecrets(t *testing.T) {
 		"success with secrets": {
 			namespace: "default",
 			setupClient: func() kubernetes.Interface {
-				return fake.NewSimpleClientset(
+				return fake.NewClientset(
 					&corev1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "secret1",
@@ -165,7 +165,7 @@ func TestRetrieveSecrets(t *testing.T) {
 		"success with no secrets": {
 			namespace: "empty",
 			setupClient: func() kubernetes.Interface {
-				return fake.NewSimpleClientset()
+				return fake.NewClientset()
 			},
 			expectedCount: 0,
 		},
@@ -179,7 +179,7 @@ func TestRetrieveSecrets(t *testing.T) {
 		"error listing secrets": {
 			namespace: "default",
 			setupClient: func() kubernetes.Interface {
-				client := fake.NewSimpleClientset()
+				client := fake.NewClientset()
 				// Inject an error by using a reactor that returns an error
 				client.PrependReactor("list", "secrets", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 					return true, nil, errors.New("failed to list secrets")

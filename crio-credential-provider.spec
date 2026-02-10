@@ -7,7 +7,7 @@
 # modifying the Go binaries breaks the DWARF debugging
 %global __os_install_post %{_rpmconfigdir}/brp-compress
 
-%global golang_version 1.24.0
+%global golang_version 1.25.0
 %{!?version: %global version 0.1.2}
 %{!?release: %global release 1}
 
