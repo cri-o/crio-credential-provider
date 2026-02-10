@@ -25,7 +25,7 @@ dependencies:
         match: ZEITGEIST_VERSION
 
   - name: golangci-lint
-    version: v2.6.2
+    version: v2.8.0
     refPaths:
       - path: .github/workflows/ci.yml
         match: GOLANGCI_LINT_VERSION
@@ -33,7 +33,7 @@ dependencies:
         match: GOLANGCI_LINT_VERSION
 
   - name: kubernetes
-    version: v1.34
+    version: v1.35
     refPaths:
       - path: test/e2e-setup
         match: KUBERNETES_VERSION

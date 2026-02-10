@@ -9,7 +9,7 @@ swapoff -a
 sysctl -w net.ipv4.ip_forward=1
 
 # Install Kubernetes and CRI-O
-KUBERNETES_VERSION=v1.34
+KUBERNETES_VERSION=v1.35
 curl -fsSL https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/Release.key | gpg --batch --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBERNETES_VERSION/deb/ /" | tee /etc/apt/sources.list.d/kubernetes.list
 curl -fsSL https://download.opensuse.org/repositories/isv:/cri-o:/prerelease:/main/deb/Release.key | gpg --batch --dearmor -o /etc/apt/keyrings/cri-o-apt-keyring.gpg

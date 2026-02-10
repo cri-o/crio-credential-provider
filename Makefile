@@ -10,7 +10,7 @@ BUILD_FILES := $(shell find . -type f -name '*.go' -or -name '*.mod' -or -name '
 REGISTRIES_CONF ?= /etc/containers/registries.conf
 
 GOLANGCI_LINT := $(BUILD_DIR)/golangci-lint
-GOLANGCI_LINT_VERSION := v2.6.2
+GOLANGCI_LINT_VERSION := v2.8.0
 
 SHFMT := $(BUILD_DIR)/shfmt
 SHFMT_VERSION := v3.12.0
