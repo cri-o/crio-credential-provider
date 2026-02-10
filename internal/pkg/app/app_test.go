@@ -128,7 +128,7 @@ func TestRun(t *testing.T) {
 				require.NoError(t, err)
 
 				clientFunc := func(string) (kubernetes.Interface, error) {
-					return fake.NewSimpleClientset(&corev1.SecretList{Items: []corev1.Secret{
+					return fake.NewClientset(&corev1.SecretList{Items: []corev1.Secret{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "secret",
