@@ -9,10 +9,10 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/stretchr/testify v1.11.1
 	go.podman.io/image/v5 v5.39.1
-	k8s.io/api v0.35.1
-	k8s.io/apimachinery v0.35.1
-	k8s.io/client-go v0.35.1
-	k8s.io/kubelet v0.35.1
+	k8s.io/api v0.35.2
+	k8s.io/apimachinery v0.35.2
+	k8s.io/client-go v0.35.2
+	k8s.io/kubelet v0.35.2
 )
 
 require (
