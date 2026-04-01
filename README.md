@@ -8,6 +8,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cri-o/crio-credential-provider)](https://goreportcard.com/report/github.com/cri-o/crio-credential-provider)
 [![FOSSA Security](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_shield&issueType=security)
 [![FOSSA License](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fcri-o%2Fcrio-credential-provider?ref=badge_shield)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11308/badge)](https://www.bestpractices.dev/projects/11308)
 
 <p align="center">
   <img src="./.github/logo.svg" alt="Logo" width="240">

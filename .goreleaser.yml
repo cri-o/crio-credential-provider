@@ -35,18 +35,9 @@ archives:
 signs:
   # Keyless
   - id: crio-credential-provider-keyless
-    signature: "${artifact}.sig"
-    certificate: "${artifact}.pem"
+    signature: "${artifact}.sigstore.json"
     cmd: cosign
-    args:
-      [
-        "sign-blob",
-        "--output-signature",
-        "${artifact}.sig",
-        "--output-certificate",
-        "${artifact}.pem",
-        "${artifact}",
-      ]
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}"]
     artifacts: all
 
 sboms:
@@ -79,4 +70,18 @@ release:
   prerelease: auto
 
 changelog:
-  disable: true
+  use: github
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Other changes
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"
