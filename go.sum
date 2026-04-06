@@ -100,8 +100,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
-go.podman.io/image/v5 v5.39.1 h1:loIw4qHzZzBlUguYZau40u8HbR5MrTPQhwT4Hy6sCm0=
-go.podman.io/image/v5 v5.39.1/go.mod h1:SlaR6Pra1ATIx4BcuZ16oafb3QcCHISaKcJbtlN/G/0=
+go.podman.io/image/v5 v5.39.2 h1:EJua/pRtvgLV/a5y8/RvA+ekKukZh0UuKMvLdTmEWFk=
+go.podman.io/image/v5 v5.39.2/go.mod h1:SlaR6Pra1ATIx4BcuZ16oafb3QcCHISaKcJbtlN/G/0=
 go.podman.io/storage v1.62.0 h1:0QjX1XlzVmbiaulb+aR/CG6p9+pzaqwIeZPe3tEjHbY=
 go.podman.io/storage v1.62.0/go.mod h1:A3UBK0XypjNZ6pghRhuxg62+2NIm5lcUGv/7XyMhMUI=
 go.yaml.in/yaml/v2 v2.4.3 h1:6gvOSjQoTB3vt1l+CU+tSyi/HOjfOjRLJ4YwYZGwRO0=

@@ -100,7 +100,7 @@ github.com/stretchr/testify/require
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
-# go.podman.io/image/v5 v5.39.1
+# go.podman.io/image/v5 v5.39.2
 ## explicit; go 1.24.0
 go.podman.io/image/v5/docker/reference
 go.podman.io/image/v5/internal/multierr
