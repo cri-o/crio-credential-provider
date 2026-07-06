@@ -2,15 +2,12 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,12 +18,6 @@ import (
 	"github.com/cri-o/crio-credential-provider/internal/pkg/logger"
 	"github.com/cri-o/crio-credential-provider/internal/pkg/mirrors"
 )
-
-var bufferPool = sync.Pool{
-	New: func() any {
-		return bytes.NewBuffer(make([]byte, 0, 256))
-	},
-}
 
 // Run is the main entry point for the whole credential provider application.
 func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath string, clientFunc k8s.ClientFunc) error {
@@ -111,18 +102,6 @@ func Run(stdin io.Reader, registriesConfPath, authDir, kubeletAuthFilePath strin
 }
 
 func response() error {
-	// Provide an empty response to the kubelet
-	// Use sync.Pool to reuse buffers across invocations
-	bufInterface := bufferPool.Get()
-
-	buf, ok := bufInterface.(*bytes.Buffer)
-	if !ok {
-		return errors.New("buffer pool returned unexpected type")
-	}
-
-	buf.Reset()
-	defer bufferPool.Put(buf)
-
 	resp := cpv1.CredentialProviderResponse{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "CredentialProviderResponse",
@@ -131,11 +110,7 @@ func response() error {
 		CacheKeyType: cpv1.RegistryPluginCacheKeyType,
 	}
 
-	if err := json.NewEncoder(buf).Encode(resp); err != nil {
-		return fmt.Errorf("unable to marshal credential provider response: %w", err)
-	}
-
-	if _, err := buf.WriteTo(os.Stdout); err != nil {
+	if err := json.NewEncoder(os.Stdout).Encode(resp); err != nil {
 		return fmt.Errorf("unable to write credential provider response: %w", err)
 	}
 
