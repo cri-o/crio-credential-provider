@@ -106,15 +106,26 @@ func APIServerHost(rootDir string) string {
 
 	envFilePath := filepath.Join(rootDir, defaultAPIServerEnvFile)
 
-	if err := godotenv.Load(envFilePath); os.IsNotExist(err) {
-		logger.L().Printf("Unable to find env file %q, using default API server host: %s", envFilePath, defaultHost)
+	envMap, err := godotenv.Read(envFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.L().Printf("Unable to find env file %q, using default API server host: %s", envFilePath, defaultHost)
+		} else {
+			logger.L().Printf("Unable to read env file %q, using default API server host: %s", envFilePath, defaultHost)
+		}
 
 		return defaultHost
 	}
 
-	// Avoid fmt.Sprintf allocation for simple string concatenation
-	serviceHost := os.Getenv("KUBERNETES_SERVICE_HOST")
-	servicePort := os.Getenv("KUBERNETES_SERVICE_PORT")
+	serviceHost := envMap["KUBERNETES_SERVICE_HOST"]
+	servicePort := envMap["KUBERNETES_SERVICE_PORT"]
+
+	if serviceHost == "" || servicePort == "" {
+		logger.L().Printf("Env file %q missing KUBERNETES_SERVICE_HOST or KUBERNETES_SERVICE_PORT, using default API server host: %s", envFilePath, defaultHost)
+
+		return defaultHost
+	}
+
 	host := serviceHost + ":" + servicePort
 	logger.L().Printf("Using API server host: %s", host)
 
