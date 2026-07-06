@@ -242,23 +242,23 @@ func TestAPIServerHost(t *testing.T) {
 			setupEnvFile: false,
 			expected:     "localhost:6443",
 		},
-		"empty env file returns colon only": {
+		"empty env file returns default": {
 			rootDir:      t.TempDir(),
 			setupEnvFile: true,
 			envContent:   "",
-			expected:     ":",
+			expected:     "localhost:6443",
 		},
-		"partial env vars host only": {
+		"partial env vars host only returns default": {
 			rootDir:      t.TempDir(),
 			setupEnvFile: true,
 			envContent:   "KUBERNETES_SERVICE_HOST=partial.host",
-			expected:     "partial.host:",
+			expected:     "localhost:6443",
 		},
-		"partial env vars port only": {
+		"partial env vars port only returns default": {
 			rootDir:      t.TempDir(),
 			setupEnvFile: true,
 			envContent:   "KUBERNETES_SERVICE_PORT=9443",
-			expected:     ":9443",
+			expected:     "localhost:6443",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

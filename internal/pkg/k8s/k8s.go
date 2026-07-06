@@ -115,6 +115,13 @@ func APIServerHost(rootDir string) string {
 	// Avoid fmt.Sprintf allocation for simple string concatenation
 	serviceHost := os.Getenv("KUBERNETES_SERVICE_HOST")
 	servicePort := os.Getenv("KUBERNETES_SERVICE_PORT")
+
+	if serviceHost == "" || servicePort == "" {
+		logger.L().Printf("Env file %q missing KUBERNETES_SERVICE_HOST or KUBERNETES_SERVICE_PORT, using default API server host: %s", envFilePath, defaultHost)
+
+		return defaultHost
+	}
+
 	host := serviceHost + ":" + servicePort
 	logger.L().Printf("Using API server host: %s", host)
 
