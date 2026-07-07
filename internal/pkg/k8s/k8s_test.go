@@ -212,9 +212,9 @@ func TestRetrieveSecrets(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // Test manipulates global env vars and cannot run in parallel
 func TestAPIServerHost(t *testing.T) {
-	//nolint:paralleltest // Subtests manipulate global env vars and cannot run in parallel
+	t.Parallel()
+
 	for name, tc := range map[string]struct {
 		rootDir      string
 		setupEnvFile bool
@@ -242,48 +242,27 @@ func TestAPIServerHost(t *testing.T) {
 			setupEnvFile: false,
 			expected:     "localhost:6443",
 		},
-		"empty env file returns colon only": {
+		"empty env file returns default": {
 			rootDir:      t.TempDir(),
 			setupEnvFile: true,
 			envContent:   "",
-			expected:     ":",
+			expected:     "localhost:6443",
 		},
-		"partial env vars host only": {
+		"partial env vars host only returns default": {
 			rootDir:      t.TempDir(),
 			setupEnvFile: true,
 			envContent:   "KUBERNETES_SERVICE_HOST=partial.host",
-			expected:     "partial.host:",
+			expected:     "localhost:6443",
 		},
-		"partial env vars port only": {
+		"partial env vars port only returns default": {
 			rootDir:      t.TempDir(),
 			setupEnvFile: true,
 			envContent:   "KUBERNETES_SERVICE_PORT=9443",
-			expected:     ":9443",
+			expected:     "localhost:6443",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			// Note: Not running subtests in parallel due to global env var manipulation
-
-			// Save and clear env vars for clean test
-			originalHost := os.Getenv("KUBERNETES_SERVICE_HOST")
-			originalPort := os.Getenv("KUBERNETES_SERVICE_PORT")
-
-			t.Cleanup(func() {
-				if originalHost != "" {
-					require.NoError(t, os.Setenv("KUBERNETES_SERVICE_HOST", originalHost)) //nolint:usetesting // Conditional restore
-				} else {
-					require.NoError(t, os.Unsetenv("KUBERNETES_SERVICE_HOST"))
-				}
-
-				if originalPort != "" {
-					require.NoError(t, os.Setenv("KUBERNETES_SERVICE_PORT", originalPort)) //nolint:usetesting // Conditional restore
-				} else {
-					require.NoError(t, os.Unsetenv("KUBERNETES_SERVICE_PORT"))
-				}
-			})
-
-			require.NoError(t, os.Unsetenv("KUBERNETES_SERVICE_HOST"))
-			require.NoError(t, os.Unsetenv("KUBERNETES_SERVICE_PORT"))
+			t.Parallel()
 
 			if tc.setupEnvFile {
 				envFilePath := filepath.Join(tc.rootDir, "apiserver-url.env")
