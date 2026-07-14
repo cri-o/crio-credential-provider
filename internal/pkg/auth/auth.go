@@ -216,24 +216,48 @@ func writeAuthFile(dir, image, namespace string, fileContents docker.ConfigJSON)
 		return "", fmt.Errorf("get auth path: %w", err)
 	}
 
-	// Write directly to file using encoder to avoid intermediate buffer allocation
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	// Write to a temp file first, then atomically rename into place.
+	// This prevents a truncated or empty auth file if the process is
+	// killed mid-write.
+	tmpFile, err := os.CreateTemp(dir, ".auth-*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("open auth file: %w", err)
+		return "", fmt.Errorf("create temp auth file: %w", err)
 	}
 
+	tmpPath := tmpFile.Name()
+
+	success := false
+
 	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			logger.L().Printf("Failed to close auth file: %v", closeErr)
+		if !success {
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
-	encoder := json.NewEncoder(file)
+	encoder := json.NewEncoder(tmpFile)
 	encoder.SetIndent("", "\t")
 
 	if err := encoder.Encode(fileContents); err != nil {
+		_ = tmpFile.Close()
+
 		return "", fmt.Errorf("encode auth file: %w", err)
 	}
+
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+
+		return "", fmt.Errorf("sync temp auth file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("close temp auth file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		return "", fmt.Errorf("rename temp auth file: %w", err)
+	}
+
+	success = true
 
 	return path, nil
 }
