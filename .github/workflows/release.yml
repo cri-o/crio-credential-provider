@@ -45,7 +45,7 @@ jobs:
       - uses: kubernetes-sigs/release-actions/setup-tejolote@b5b8280a60e6e20607f77068011269b982c60971 # v0.4.5
       - run: |
           tejolote attest --artifacts github://cri-o/crio-credential-provider/${{ steps.tag.outputs.tag_name }} github://cri-o/crio-credential-provider/"${GITHUB_RUN_ID}" --output crio-credential-provider.intoto.json --sign
-      - uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: crio-credential-provider.intoto.json
           tag_name: "${{ steps.tag.outputs.tag_name }}"
