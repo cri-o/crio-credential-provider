@@ -128,7 +128,7 @@ github.com/stretchr/testify/require
 # github.com/x448/float16 v0.8.4
 ## explicit; go 1.11
 github.com/x448/float16
-# go.podman.io/image/v5 v5.41.1
+# go.podman.io/image/v5 v5.41.2
 ## explicit; go 1.25.7
 go.podman.io/image/v5/docker/reference
 go.podman.io/image/v5/internal/multierr
@@ -137,7 +137,7 @@ go.podman.io/image/v5/pkg/compression/internal
 go.podman.io/image/v5/pkg/compression/types
 go.podman.io/image/v5/pkg/sysregistriesv2
 go.podman.io/image/v5/types
-# go.podman.io/storage v1.64.0
+# go.podman.io/storage v1.64.1
 ## explicit; go 1.25.0
 go.podman.io/storage/internal/rawfilelock
 go.podman.io/storage/pkg/configfile
