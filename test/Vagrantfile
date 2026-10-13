@@ -19,5 +19,13 @@ Vagrant.configure("2") do |config|
 
   config.vm.synced_folder "../", "/vagrant"
 
+  # The box hardcodes public DNS servers with DNSSEC enabled, which fail to
+  # resolve on GitHub runners. Use the DNS server provided via DHCP instead.
+  config.vm.provision "dns", type: "shell", run: "once", inline: <<~'SHELL'
+    mkdir -p /etc/systemd/resolved.conf.d
+    printf '[Resolve]\nDNS=\nFallbackDNS=\nDNSSEC=no\n' > /etc/systemd/resolved.conf.d/dns.conf
+    systemctl restart systemd-resolved
+  SHELL
+
   config.vm.provision "setup", type: "shell", inline: "/vagrant/test/e2e-setup", run: "once"
 end
