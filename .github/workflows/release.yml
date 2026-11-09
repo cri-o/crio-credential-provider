@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - uses: kubernetes-sigs/release-actions/setup-bom@db2539584eee675d096d3846b00785aa9f6c4b13 # main
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
@@ -45,7 +45,7 @@ jobs:
       - uses: kubernetes-sigs/release-actions/setup-tejolote@db2539584eee675d096d3846b00785aa9f6c4b13 # main
       - run: |
           tejolote attest --artifacts github://cri-o/crio-credential-provider/${{ steps.tag.outputs.tag_name }} github://cri-o/crio-credential-provider/"${GITHUB_RUN_ID}" --output crio-credential-provider.intoto.json --sign
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           files: crio-credential-provider.intoto.json
           tag_name: "${{ steps.tag.outputs.tag_name }}"
