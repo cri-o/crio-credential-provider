@@ -33,6 +33,8 @@ const (
 	image                  = registry + "/library/image"
 	mirror                 = "localhost:5000"
 	usernamePasswordBase64 = "bXl1c2VyOm15cGFzc3dvcmQ="
+	globalAuthBase64       = "Z2xvYmFsdXNlcjpnbG9iYWxwYXNzd29yZA=="
+	kubeletAuthFileName    = "kubelet-auth.json"
 )
 
 var (
@@ -116,6 +118,42 @@ func TestRun(t *testing.T) {
 		return tempDir, registriesConf
 	}
 
+	clientWithSecret := func(data []byte) k8s.ClientFunc {
+		t.Helper()
+
+		return func(string) (kubernetes.Interface, error) {
+			return fake.NewClientset(&corev1.SecretList{Items: []corev1.Secret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secret",
+						Namespace: namespace,
+					},
+					Type: corev1.SecretTypeDockerConfigJson,
+					Data: map[string][]byte{
+						corev1.DockerConfigJsonKey: data,
+					},
+				},
+			}}), nil
+		}
+	}
+
+	readAuthFile := func(authDir string) docker.ConfigJSON {
+		t.Helper()
+
+		path, err := auth.FilePath(authDir, namespace, image)
+		require.NoError(t, err)
+		require.FileExists(t, path)
+
+		authFileContents, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		authConfig := docker.ConfigJSON{}
+		err = json.Unmarshal(authFileContents, &authConfig)
+		require.NoError(t, err)
+
+		return authConfig
+	}
+
 	for name, tc := range map[string]struct {
 		prepare func() (buffer *bytes.Buffer, registriesConfPath, authDir string, client k8s.ClientFunc)
 		assert  func(err error, authDir string)
@@ -127,42 +165,47 @@ func TestRun(t *testing.T) {
 				_, err := registriesConf.WriteString(testRegistryConfig)
 				require.NoError(t, err)
 
-				clientFunc := func(string) (kubernetes.Interface, error) {
-					return fake.NewClientset(&corev1.SecretList{Items: []corev1.Secret{
-						{
-							ObjectMeta: metav1.ObjectMeta{
-								Name:      "secret",
-								Namespace: namespace,
-							},
-							Type: corev1.SecretTypeDockerConfigJson,
-							Data: map[string][]byte{
-								corev1.DockerConfigJsonKey: testSecretData,
-							},
-						},
-					}}), nil
-				}
-
 				return requestBuffer(true),
 					registriesConf.Name(),
 					tempDir,
-					clientFunc
+					clientWithSecret(testSecretData)
 			},
 			assert: func(err error, authDir string) {
 				require.NoError(t, err)
 
-				path, err := auth.FilePath(authDir, namespace, image)
-				require.NoError(t, err)
-				require.FileExists(t, path)
-
-				authFileContents, err := os.ReadFile(path)
-				require.NoError(t, err)
-
-				authConfig := docker.ConfigJSON{}
-				err = json.Unmarshal(authFileContents, &authConfig)
-				require.NoError(t, err)
-
+				authConfig := readAuthFile(authDir)
 				require.Len(t, authConfig.Auths, 1)
 				require.Equal(t, usernamePasswordBase64, authConfig.Auths[mirror].Auth)
+			},
+		},
+		"success keeping the global auth for a secret without a credential": {
+			prepare: func() (*bytes.Buffer, string, string, k8s.ClientFunc) {
+				tempDir, registriesConf := tempDirWithRegistriesConf()
+
+				_, err := registriesConf.WriteString(testRegistryConfig)
+				require.NoError(t, err)
+
+				globalAuth := fmt.Appendf([]byte{}, `{"auths":{%q:{"auth":%q}}}`, mirror, globalAuthBase64)
+				err = os.WriteFile(filepath.Join(tempDir, kubeletAuthFileName), globalAuth, 0o600)
+				require.NoError(t, err)
+
+				// A docker config JSON without an auth member carries no
+				// credential this provider can use.
+				secretData := fmt.Appendf([]byte{},
+					`{"auths":{"http://%s":{"username":"myuser","password":"mypassword"}}}`,
+					mirror,
+				)
+
+				return requestBuffer(true),
+					registriesConf.Name(),
+					tempDir,
+					clientWithSecret(secretData)
+			},
+			assert: func(err error, authDir string) {
+				require.NoError(t, err)
+
+				authConfig := readAuthFile(authDir)
+				require.Equal(t, globalAuthBase64, authConfig.Auths[mirror].Auth)
 			},
 		},
 		"success no mirrors": {
@@ -264,7 +307,7 @@ func TestRun(t *testing.T) {
 			t.Parallel()
 
 			buffer, registriesConfPath, authDir, clientFunc := tc.prepare()
-			kubeletAuthFilePath := filepath.Join(authDir, "kubelet-auth.json")
+			kubeletAuthFilePath := filepath.Join(authDir, kubeletAuthFileName)
 
 			err := Run(buffer, registriesConfPath, authDir, kubeletAuthFilePath, clientFunc)
 

@@ -17,9 +17,11 @@ import (
 )
 
 var (
-	errNoAuths        = errors.New("no auths found in file contents")
-	errNamespaceEmpty = errors.New("namespace is empty")
-	errSecretsNil     = errors.New("secrets is nil")
+	errNoAuths         = errors.New("no auths found in file contents")
+	errNamespaceEmpty  = errors.New("namespace is empty")
+	errSecretsNil      = errors.New("secrets is nil")
+	errAuthEmpty       = errors.New("docker auth is empty")
+	errNoAuthSeparator = errors.New("docker auth is not in the username:password format")
 )
 
 // CreateAuthFile can be used to create a auth file to /etc/crio/auth which follows the convention for CRI-O consumption.
@@ -171,6 +173,10 @@ func validDockerConfigSecret(secret corev1.Secret) (docker.ConfigJSON, error) {
 
 // decodeDockerAuth decodes the username and password from conf.
 func decodeDockerAuth(conf docker.AuthConfig) (docker.ConfigEntry, error) {
+	if conf.Auth == "" {
+		return docker.ConfigEntry{}, errAuthEmpty
+	}
+
 	decoded, err := base64.StdEncoding.DecodeString(conf.Auth)
 	if err != nil {
 		return docker.ConfigEntry{}, fmt.Errorf("unable to decode docker auth: %w", err)
@@ -178,7 +184,7 @@ func decodeDockerAuth(conf docker.AuthConfig) (docker.ConfigEntry, error) {
 
 	user, passwordPart, valid := strings.Cut(string(decoded), ":")
 	if !valid {
-		return docker.ConfigEntry{}, nil
+		return docker.ConfigEntry{}, errNoAuthSeparator
 	}
 
 	password := strings.Trim(passwordPart, "\x00")

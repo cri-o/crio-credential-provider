@@ -316,6 +316,7 @@ func TestDecodeDockerAuth(t *testing.T) {
 	for name, tc := range map[string]struct {
 		auth         docker.AuthConfig
 		shouldErr    bool
+		expectErr    error
 		expectUser   string
 		expectPasswd string
 	}{
@@ -336,10 +337,14 @@ func TestDecodeDockerAuth(t *testing.T) {
 			shouldErr: true,
 		},
 		"missing colon separator": {
-			auth:         docker.AuthConfig{Auth: base64.StdEncoding.EncodeToString([]byte("userpassword"))},
-			shouldErr:    false,
-			expectUser:   "",
-			expectPasswd: "",
+			auth:      docker.AuthConfig{Auth: base64.StdEncoding.EncodeToString([]byte("userpassword"))},
+			shouldErr: true,
+			expectErr: errNoAuthSeparator,
+		},
+		"no auth member": {
+			auth:      docker.AuthConfig{},
+			shouldErr: true,
+			expectErr: errAuthEmpty,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -348,6 +353,10 @@ func TestDecodeDockerAuth(t *testing.T) {
 			entry, err := decodeDockerAuth(tc.auth)
 			if tc.shouldErr {
 				require.Error(t, err)
+
+				if tc.expectErr != nil {
+					require.ErrorIs(t, err, tc.expectErr)
+				}
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tc.expectUser, entry.Username)
