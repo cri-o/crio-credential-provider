@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 1
       - id: tag
         run: echo "tag_name=${GITHUB_REF#refs/*/}" >> "$GITHUB_OUTPUT"
-      - uses: kubernetes-sigs/release-actions/setup-tejolote@db2539584eee675d096d3846b00785aa9f6c4b13 # main
+      - uses: kubernetes-sigs/release-actions/setup-tejolote@2adaf30abd4b1d585fb82657a91b399c4790bc1a # main
       - run: |
           tejolote attest --artifacts github://cri-o/crio-credential-provider/${{ steps.tag.outputs.tag_name }} github://cri-o/crio-credential-provider/"${GITHUB_RUN_ID}" --output crio-credential-provider.intoto.json --sign
       - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
