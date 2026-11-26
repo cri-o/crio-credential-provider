@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
-      - uses: kubernetes-sigs/release-actions/setup-bom@db2539584eee675d096d3846b00785aa9f6c4b13 # main
+      - uses: kubernetes-sigs/release-actions/setup-bom@2adaf30abd4b1d585fb82657a91b399c4790bc1a # main
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           install-only: true
